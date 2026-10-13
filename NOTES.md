@@ -100,3 +100,9 @@ Mutation checks (2026-10-13; each change made to a copy, the full DB suite run, 
 | recovery ignores "changed after the window" | 50_recovery |
 | xp check loosened in `attempt_problem` | 30_attack (constraint then fails the batch) |
 | `revoke … from anon` removed | 10_schema |
+
+## 2026-10-13: Phase 2 approved; one chat per phase
+
+Owner approved Phase 2 and asked to switch to a new conversation (Opus) for Phase 3, and
+that every handoff tells them to open a new chat. Added the rule to CLAUDE.md and the
+template plus a model-per-phase table to HANDOFF.md §6.

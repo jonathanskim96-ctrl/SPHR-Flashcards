@@ -4,8 +4,9 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 2 (database) is built** on branch `ccr-67c10ae0-ubtsvr`, waiting for the owner's
-  OK before Phase 3 or any merge to `main`. Phases 0 and 1 were approved on 2026-10-13.
+- **Phase 2 (database) is built and approved** (2026-10-13) on branch
+  `ccr-67c10ae0-ubtsvr`. **Next: Phase 3**, in a new chat (see §6). Phases 0–2 approved;
+  nothing merged to `main`.
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
   Part B3 runs them later). The app still shows a placeholder screen.
 - Phase 2 contents: `supabase/migrations/0001_init.sql` (tables + constraints),
@@ -86,6 +87,7 @@ Decided in the planning session (2026-10-13):
 | Exam date | **December 15, 2026** (default in Settings; she can change it) |
 | Reminder on first install | **Off until she turns it on; a one-time home-screen card offers "Turn on daily reminder (3:00 PM)?"** with a button; dismissing it leaves Settings as the way to turn it on (decided 2026-10-13, Phase 1) |
 | Safety-log writer | **Option A approved**: one SECURITY DEFINER trigger function (`log_change`) writes the safety log; the app has no access to the log (decided 2026-10-13, Phase 2) |
+| Chats and models | **One new chat per phase.** Opus for Phases 3, 7, 9; Sonnet is fine for 4, 5, 6, 8 (see §6). Every end-of-phase report tells the owner to open a new chat (decided 2026-10-13) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
 Design choices made in planning (no product trade-off, but worth knowing):
@@ -198,3 +200,31 @@ self-test on `tests/fixtures/bad-banks/`, `--previous`, check-migrations, build-
 `run.sh` needs a local PostgreSQL (`initdb`); as root it runs the server as the `postgres`
 OS user. It applies the migrations as `migrator`, a non-superuser standing in for Supabase's
 `postgres` role, with Supabase-like default grants, so missing revokes are caught. Migrations are added with `node scripts/check-migrations.mjs --record` once final.
+
+## 6. Starting the next phase (paste this into every end-of-phase report)
+
+Every phase runs in a **new chat**. At the end of a phase, the report must end with these
+steps, with `N` replaced by the next phase number and the model taken from the table:
+
+| Phase | What it builds | Model |
+|---|---|---|
+| 3 | Offline saving and syncing (phone ↔ Supabase) | **Opus** |
+| 4 | Loading the questions onto the phone | Sonnet |
+| 5 | The screens (UI) | Sonnet |
+| 6 | Installable app, offline, updates | Sonnet |
+| 7 | Daily reminder (push notifications) | **Opus** |
+| 8 | Backups, keep-alive, question import | Sonnet |
+| 9 | End-to-end tests, reviews, go-live | **Opus** |
+
+Steps for the owner (copy these into the report):
+1. Open a **new** Claude Code chat on the SPHR-Flashcards repository.
+2. In the model menu, choose **MODEL** before sending anything.
+3. Paste this as the first message:
+```
+Read CLAUDE.md and docs/HANDOFF.md first, then docs/BUILD_PLAN.md. Follow the data-safety and security rules exactly; my safety rules in CLAUDE.md section 0 override everything else. Ask me before deciding any product behaviour: give 2-3 options with a recommendation, and record my answers in docs/HANDOFF.md. I'm non-technical: every instruction you give me must be copy-pastable, meaning numbered steps with exact clicks, and anything I type or paste in its own code block. Never invent SPHR questions; tests use the fake sample bank.
+
+Phases 0 to N-1 are built and approved. Work on the existing branch ccr-67c10ae0-ubtsvr (fetch it and continue from its latest commit), not main. Start BUILD_PLAN.md Phase N. When Phase N is done: run the full check chain, tell me honestly what passed and what didn't, update HANDOFF.md and NOTES.md, push to that branch, and stop. Wait for my OK before starting the next phase or merging to main.
+```
+(In the message itself, write the real numbers, e.g. "Phases 0 to 3 are built and approved"
+and "Phase 4".) If the owner approves a phase in the same chat, record the approval in §1,
+commit and push, then give these steps; do not start the next phase.

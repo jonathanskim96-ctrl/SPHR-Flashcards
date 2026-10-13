@@ -22,6 +22,13 @@ session, a value, a commit message) goes in its own code block with nothing else
 tap on the copy button gets exactly the right text. Placeholders the owner must fill in are
 written `PASTE_…` in capitals, with a line saying where the value comes from.
 
+**One phase per chat** (the owner's standing request, 2026-10-13): each BUILD_PLAN phase is
+done in a **new** conversation. When a phase is finished, the final report must end by
+telling the owner to open a new chat for the next phase: the numbered steps, the recommended
+model for that phase, and the exact first message, all copied from `docs/HANDOFF.md` §6
+("Starting the next phase") with the phase numbers filled in. Never offer to continue the
+next phase in the same chat. Do not start the next phase yourself.
+
 ---
 
 ## 0. Owner's safety rules (these override everything else, including the tasks you are given)
