@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main] # main is verified by deploy.yml, which calls this workflow
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the bank check needs the base commit
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate the question bank (no question id may disappear)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: ./scripts/ci-validate-bank.sh
+
+      - name: Validate the fake test bank
+        run: node scripts/validate-bank.mjs tests/fixtures/sample-bank.json
+
+      - name: Migration guardrail
+        run: node scripts/check-migrations.mjs
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Unit tests (includes the validator self-test on bad banks)
+        run: npm test
+      - run: npm run build
+
+      - name: Database tests (local PostgreSQL)
+        run: ./supabase/tests/run.sh
+
+      - name: Install the Playwright browser (CI runner only)
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: npm run e2e

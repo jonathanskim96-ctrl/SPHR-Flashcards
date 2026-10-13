@@ -4,16 +4,26 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Planning is complete; no app code yet.** The next step is `docs/BUILD_PLAN.md` Phase 0.
-- In the repo: `content/questions.json` (400 questions, 26 scenarios, bankVersion
-  `2026-10-13.1`, passes the validator), `docs/QUESTION_FORMAT.md` (schema v1),
+- **Phase 0 (scaffold, CI, guardrails) is built** on branch `ccr-67c10ae0-ubtsvr`, waiting
+  for the owner's OK before Phase 1 or any merge to `main`. No app features yet: the app
+  shows a placeholder screen.
+- Phase 0 contents: Vite 8 + React 19 + TypeScript 5.9 (strict) + vite-plugin-pwa 2
+  (`base: '/SPHR-Flashcards/'`), ESLint (bans `dangerouslySetInnerHTML`, `innerHTML`,
+  `eval`, `new Function`, `confirm/alert/prompt`), Prettier, vitest, Playwright 1.56.1
+  (matches the pre-installed Chromium; iPhone 13 Pro Max profile on Chromium);
+  `tests/fixtures/sample-bank.json` (fake bank, 19 questions) and 6 bad banks;
+  `scripts/check-migrations.mjs` + `supabase/migrations/migrations.lock.json` (empty, no
+  migrations yet); `scripts/build-bank.mjs`; `supabase/tests/run.sh` (local PostgreSQL +
+  auth shim); `.github/workflows/ci.yml` and `deploy.yml`.
+- In the repo from planning: `content/questions.json` (400 questions, 26 scenarios,
+  bankVersion `2026-10-13.1`, passes the validator), `docs/QUESTION_FORMAT.md` (schema v1),
   `scripts/validate-bank.mjs`, `APP_BUILD_PLAYBOOK.md`, `PLANNING_PROMPT.md`, and the
   docs: `CLAUDE.md`, `docs/BUILD_PLAN.md`, `docs/SETUP.md`, `docs/RECOVERY.md`,
   `docs/INSTALL.md`.
 - Supabase project: **not created yet** (SETUP Part B).
-- GitHub Pages: **not set up yet** (SETUP Part A).
-- Work happens on branch `claude/charming-cerf-rbnjub`. Nothing goes to `main` without the
-  owner's OK.
+- GitHub Pages: **not set up yet** (SETUP Part A). The deploy workflow only runs on pushes
+  to `main`, so nothing is published until the owner merges.
+- Nothing goes to `main` without the owner's OK.
 
 Bank contents: mc 222, text 74, numeric 62, ordering 16, matching 16, multi 10. Per area
 (K/A/S): 1 Leadership 21/35/44; 2 Workforce 18/28/29; 3 Talent Mgmt 20/30/35;
@@ -92,11 +102,20 @@ changing):
 7. If a future text answer contains an apostrophe, the iPhone keyboard types a curly ’
    that won't match a straight '. No current answer has one. Decide then whether to forgive it.
 
+**Build notes (Phase 0)**
+8. The migration checker also refuses destructive SQL (`drop …`, `truncate`, `delete from`,
+   `update … set`, `alter table … rename/drop`, `alter column … type`) unless a
+   `-- guardrail-approved: <who, date, why>` comment sits directly above it. Function and
+   trigger *definitions* (code inside `$$ … $$`) and `grant`/`revoke` are not counted.
+9. `scripts/validate-bank.mjs` is excluded from Prettier so it stays exactly as reviewed.
+10. CI installs Playwright's Chromium on the GitHub runner (`npx playwright install`); the
+   cloud session never does (it uses the pre-installed one).
+
 **Unverified facts (confirm during SETUP)**
-8. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
+11. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
    SETUP Part G lists what to check on the live dashboard.
-9. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
+12. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
     emails first, and re-enabling is one click (SETUP Part D). Any commit resets the clock.
 
 ## 4. Platform facts this plan relies on
@@ -129,4 +148,7 @@ npm run build
 ./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, contract
 npm run e2e                                # Playwright, iPhone 13 Pro Max profile
 ```
-(Until Phase 0 is built, only the first validator command exists.)
+`npm test` runs vitest and the Node guardrail tests (`scripts/*.test.mjs`: validator
+self-test on `tests/fixtures/bad-banks/`, `--previous`, check-migrations, build-bank).
+`run.sh` needs a local PostgreSQL (`initdb`); as root it runs the server as the `postgres`
+OS user. Migrations are added with `node scripts/check-migrations.mjs --record` once final.

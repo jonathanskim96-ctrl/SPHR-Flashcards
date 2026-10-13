@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dev-dist/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Generated at build time from content/questions.json (scripts/build-bank.mjs)
+public/bank.json
+
+# Secrets and personal data: never commit
+.env
+.env.*
+!.env.example
+*.export.json
+sphr-progress-*.json
+supabase/.temp/

@@ -1,0 +1,14 @@
+# The question bank and fixtures keep their own formatting; docs are hand-written.
+content/
+tests/fixtures/
+*.md
+public/
+dist/
+dev-dist/
+node_modules/
+package-lock.json
+playwright-report/
+test-results/
+supabase/migrations/migrations.lock.json
+# Kept exactly as reviewed in planning (its norm() is the grading reference).
+scripts/validate-bank.mjs

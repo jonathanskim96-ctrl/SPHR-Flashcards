@@ -1,0 +1,819 @@
+{
+  "schemaVersion": 1,
+  "bankVersion": "2026-10-13.1",
+  "areas": [
+    {
+      "id": 1,
+      "name": "FAKE Area 1"
+    },
+    {
+      "id": 2,
+      "name": "FAKE Area 2"
+    },
+    {
+      "id": 3,
+      "name": "FAKE Area 3"
+    },
+    {
+      "id": 4,
+      "name": "FAKE Area 4"
+    },
+    {
+      "id": 5,
+      "name": "FAKE Area 5"
+    }
+  ],
+  "levels": {
+    "K": {
+      "name": "Knowledge/Comprehension",
+      "points": 1
+    },
+    "A": {
+      "name": "Application",
+      "points": 2
+    },
+    "S": {
+      "name": "Synthesis/Evaluation",
+      "points": 3
+    }
+  },
+  "scenarios": [
+    {
+      "id": "fake-sa",
+      "area": 2,
+      "title": "FAKE Scenario A",
+      "text": "FAKE: The Imaginary Gizmo Factory makes widgets on three pretend lines. None of this is real HR content; it exists only for tests.",
+      "source": {
+        "doc": "FAKE Worksheet 1"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "id": "fake1-q01",
+      "type": "mc",
+      "area": 1,
+      "level": "K",
+      "outline": [
+        "1.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: Which colour is the test widget?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "Blue"
+        },
+        {
+          "id": "B",
+          "text": "Green"
+        },
+        {
+          "id": "C",
+          "text": "Purple"
+        },
+        {
+          "id": "D",
+          "text": "Orange"
+        }
+      ],
+      "answer": "A",
+      "wrongReasons": {
+        "B": "FAKE: Green is not the test value.",
+        "C": "FAKE: Purple is not the test value.",
+        "D": "FAKE: Orange is not the test value."
+      },
+      "explanation": "FAKE: Blue is the made-up correct value.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 1,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake1-q02",
+      "type": "mc",
+      "area": 1,
+      "level": "A",
+      "outline": [
+        "1.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: How many sprockets does an imaginary gizmo need?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "Two sprockets"
+        },
+        {
+          "id": "B",
+          "text": "Five sprockets"
+        },
+        {
+          "id": "C",
+          "text": "Seven sprockets"
+        },
+        {
+          "id": "D",
+          "text": "Nine sprockets"
+        }
+      ],
+      "answer": "C",
+      "wrongReasons": {
+        "A": "FAKE: Two sprockets is not the test value.",
+        "B": "FAKE: Five sprockets is not the test value.",
+        "D": "FAKE: Nine sprockets is not the test value."
+      },
+      "explanation": "FAKE: Seven sprockets is the made-up correct value.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 2,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake1-q03",
+      "type": "mc",
+      "area": 2,
+      "level": "S",
+      "outline": [
+        "2.1"
+      ],
+      "category": null,
+      "scenarioId": "fake-sa",
+      "stem": "FAKE: In the scenario, which gizmo line should the factory keep?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "The red line"
+        },
+        {
+          "id": "B",
+          "text": "The blue line"
+        },
+        {
+          "id": "C",
+          "text": "The grey line"
+        },
+        {
+          "id": "D",
+          "text": "The pink line"
+        }
+      ],
+      "answer": "B",
+      "wrongReasons": {
+        "A": "FAKE: The red line is not the test value.",
+        "C": "FAKE: The grey line is not the test value.",
+        "D": "FAKE: The pink line is not the test value."
+      },
+      "explanation": "FAKE: The blue line is the made-up correct value.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 3,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake1-q04",
+      "type": "mc",
+      "area": 2,
+      "level": "K",
+      "outline": [
+        "2.1"
+      ],
+      "category": null,
+      "scenarioId": "fake-sa",
+      "stem": "FAKE: In the scenario, what does the factory call its widgets?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "Doohickeys"
+        },
+        {
+          "id": "B",
+          "text": "Thingamabobs"
+        },
+        {
+          "id": "C",
+          "text": "Whatchamacallits"
+        },
+        {
+          "id": "D",
+          "text": "Gadgetinos"
+        }
+      ],
+      "answer": "D",
+      "wrongReasons": {
+        "A": "FAKE: Doohickeys is not the test value.",
+        "B": "FAKE: Thingamabobs is not the test value.",
+        "C": "FAKE: Whatchamacallits is not the test value."
+      },
+      "explanation": "FAKE: Gadgetinos is the made-up correct value.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 4,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake1-q05",
+      "type": "mc",
+      "area": 3,
+      "level": "A",
+      "outline": [
+        "3.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: Which pretend tool polishes a test widget best?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "A feather duster"
+        },
+        {
+          "id": "B",
+          "text": "A rubber mallet"
+        },
+        {
+          "id": "C",
+          "text": "A velvet cloth"
+        },
+        {
+          "id": "D",
+          "text": "A garden rake"
+        }
+      ],
+      "answer": "C",
+      "wrongReasons": {
+        "A": "FAKE: A feather duster is not the test value.",
+        "B": "FAKE: A rubber mallet is not the test value.",
+        "D": "FAKE: A garden rake is not the test value."
+      },
+      "explanation": "FAKE: A velvet cloth is the made-up correct value.",
+      "revision": 2,
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 5,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "status": "active"
+    },
+    {
+      "id": "fake1-q06",
+      "type": "mc",
+      "area": 3,
+      "level": "K",
+      "outline": [
+        "3.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: What shape is the sample sprocket?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "Hexagon"
+        },
+        {
+          "id": "B",
+          "text": "Triangle"
+        },
+        {
+          "id": "C",
+          "text": "Octagon"
+        },
+        {
+          "id": "D",
+          "text": "Pentagon"
+        }
+      ],
+      "answer": "A",
+      "wrongReasons": {
+        "B": "FAKE: Triangle is not the test value.",
+        "C": "FAKE: Octagon is not the test value.",
+        "D": "FAKE: Pentagon is not the test value."
+      },
+      "explanation": "FAKE: Hexagon is the made-up correct value.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 6,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake1-q07",
+      "type": "mc",
+      "area": 4,
+      "level": "S",
+      "outline": [
+        "4.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: Which imaginary team owns the widget budget?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "The moon team"
+        },
+        {
+          "id": "B",
+          "text": "The sun team"
+        },
+        {
+          "id": "C",
+          "text": "The star team"
+        },
+        {
+          "id": "D",
+          "text": "The comet team"
+        }
+      ],
+      "answer": "D",
+      "wrongReasons": {
+        "A": "FAKE: The moon team is not the test value.",
+        "B": "FAKE: The sun team is not the test value.",
+        "C": "FAKE: The star team is not the test value."
+      },
+      "explanation": "FAKE: The comet team is the made-up correct value.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 7,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake1-q08",
+      "type": "mc",
+      "area": 5,
+      "level": "A",
+      "outline": [
+        "5.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: Which pretend alarm sounds when a gizmo jams?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "A kazoo"
+        },
+        {
+          "id": "B",
+          "text": "A trombone"
+        },
+        {
+          "id": "C",
+          "text": "A tuba"
+        },
+        {
+          "id": "D",
+          "text": "A banjo"
+        }
+      ],
+      "answer": "B",
+      "wrongReasons": {
+        "A": "FAKE: A kazoo is not the test value.",
+        "C": "FAKE: A tuba is not the test value.",
+        "D": "FAKE: A banjo is not the test value."
+      },
+      "explanation": "FAKE: A trombone is the made-up correct value.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 1",
+        "number": 8,
+        "originalType": "mc"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q01",
+      "type": "multi",
+      "area": 4,
+      "level": "A",
+      "outline": [
+        "4.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: Choose 2. Which two items are imaginary widget parts?",
+      "choices": [
+        {
+          "id": "A",
+          "text": "Flux sprocket"
+        },
+        {
+          "id": "B",
+          "text": "Kitchen sink"
+        },
+        {
+          "id": "C",
+          "text": "Garden hose"
+        },
+        {
+          "id": "D",
+          "text": "Zorb flange"
+        },
+        {
+          "id": "E",
+          "text": "Park bench"
+        }
+      ],
+      "answer": [
+        "A",
+        "D"
+      ],
+      "selectCount": 2,
+      "wrongReasons": {
+        "B": "FAKE: a real object.",
+        "C": "FAKE: a real object.",
+        "E": "FAKE: a real object."
+      },
+      "explanation": "FAKE: flux sprockets and zorb flanges are made-up widget parts.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 1,
+        "originalType": "multi"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q02",
+      "type": "numeric",
+      "area": 4,
+      "level": "A",
+      "outline": [
+        "4.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: What is the imaginary widget budget, in dollars?",
+      "answer": {
+        "value": 504000,
+        "tolerance": 0,
+        "unit": "$"
+      },
+      "displayAnswer": "$504,000",
+      "explanation": "FAKE: 12 widgets at $42,000 each.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 2,
+        "originalType": "numeric"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q03",
+      "type": "numeric",
+      "area": 4,
+      "level": "S",
+      "outline": [
+        "4.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: What percentage of test widgets are blue? Round to one decimal place.",
+      "answer": {
+        "value": 12.5,
+        "tolerance": 0.1,
+        "unit": "%"
+      },
+      "displayAnswer": "12.5%",
+      "explanation": "FAKE: 1 of every 8 widgets is blue.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 3,
+        "originalType": "numeric"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q04",
+      "type": "numeric",
+      "area": 1,
+      "level": "A",
+      "outline": [
+        "1.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: What is the ratio of sprockets to gizmos?",
+      "answer": {
+        "value": 40,
+        "tolerance": 0,
+        "unit": ":1"
+      },
+      "displayAnswer": "40:1",
+      "explanation": "FAKE: 400 sprockets for 10 gizmos.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 4,
+        "originalType": "numeric"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q05",
+      "type": "numeric",
+      "area": 2,
+      "level": "K",
+      "outline": [
+        "2.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: How many days does a pretend widget take to cool?",
+      "answer": {
+        "value": 30,
+        "tolerance": 0,
+        "unit": "days"
+      },
+      "displayAnswer": "30 days",
+      "explanation": "FAKE: widgets cool for one imaginary month.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 5,
+        "originalType": "numeric"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q06",
+      "type": "numeric",
+      "area": 5,
+      "level": "K",
+      "outline": [
+        "5.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: At what temperature does the test gizmo hum?",
+      "answer": {
+        "value": 72,
+        "tolerance": 0,
+        "unit": "°F"
+      },
+      "displayAnswer": "72°F",
+      "explanation": "FAKE: gizmos hum at room temperature.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 6,
+        "originalType": "numeric"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q07",
+      "type": "numeric",
+      "area": 3,
+      "level": "S",
+      "outline": [
+        "3.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: What is the widget polish index? Give a decimal.",
+      "answer": {
+        "value": 0.85,
+        "tolerance": 0,
+        "unit": ""
+      },
+      "displayAnswer": "0.85",
+      "explanation": "FAKE: 85 shiny widgets out of 100.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 7,
+        "originalType": "numeric"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q08",
+      "type": "text",
+      "area": 3,
+      "level": "K",
+      "outline": [
+        "3.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: The made-up practice of herding loose widgets is called ________.",
+      "accepted": [
+        "widget-wrangling",
+        "widget wrangling",
+        "WW",
+        "widget-wrangler"
+      ],
+      "displayAnswer": "widget-wrangling",
+      "explanation": "FAKE: the term comes from an imaginary rodeo.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 8,
+        "originalType": "text"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q09",
+      "type": "text",
+      "area": 5,
+      "level": "A",
+      "outline": [
+        "5.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: The retired name for a broken gizmo is ________.",
+      "accepted": [
+        "gizmo-gone",
+        "GG"
+      ],
+      "displayAnswer": "gizmo-gone",
+      "explanation": "FAKE: this question is retired and should never appear.",
+      "status": "retired",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 9,
+        "originalType": "text"
+      },
+      "added": "2026-10-13",
+      "revision": 1
+    },
+    {
+      "id": "fake2-q10",
+      "type": "ordering",
+      "area": 2,
+      "level": "S",
+      "outline": [
+        "2.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: Put the steps for building a test widget in order.",
+      "items": [
+        {
+          "id": "A",
+          "text": "Attach the flux sprocket"
+        },
+        {
+          "id": "B",
+          "text": "Paint the widget blue"
+        },
+        {
+          "id": "C",
+          "text": "Unbox the parts"
+        },
+        {
+          "id": "D",
+          "text": "Ship the widget"
+        },
+        {
+          "id": "E",
+          "text": "Tighten the zorb flange"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "explanation": "FAKE: parts first, painting near the end, shipping last.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 10,
+        "originalType": "ordering"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    },
+    {
+      "id": "fake2-q11",
+      "type": "matching",
+      "area": 1,
+      "level": "S",
+      "outline": [
+        "1.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: Match each pretend gadget to what it does.",
+      "note": "FAKE: one option is not used.",
+      "prompts": [
+        {
+          "id": "1",
+          "text": "Sprocketron"
+        },
+        {
+          "id": "2",
+          "text": "Flangeomatic"
+        },
+        {
+          "id": "3",
+          "text": "Gizmoscope"
+        },
+        {
+          "id": "4",
+          "text": "Widgetizer"
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Looks inside gizmos"
+        },
+        {
+          "id": "B",
+          "text": "Spins sprockets"
+        },
+        {
+          "id": "C",
+          "text": "Sings to widgets"
+        },
+        {
+          "id": "D",
+          "text": "Bends flanges"
+        },
+        {
+          "id": "E",
+          "text": "Turns parts into widgets"
+        }
+      ],
+      "answer": {
+        "1": "B",
+        "2": "D",
+        "3": "A",
+        "4": "E"
+      },
+      "explanation": "FAKE: each gadget is named after what it handles.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 11,
+        "originalType": "matching"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
+    }
+  ]
+}
