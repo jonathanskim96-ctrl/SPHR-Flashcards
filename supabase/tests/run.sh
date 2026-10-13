@@ -38,11 +38,13 @@ trap cleanup EXIT
   -o "-k $WORK -p $PORT -c listen_addresses='' -c fsync=off" start >/dev/null \
   || { cat "$WORK/server.log" >&2; exit 1; }
 
-PSQL=("$PG_BIN/psql" -X -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PORT" -U postgres)
-"${PSQL[@]}" -d postgres -c "create database app" >/dev/null
-run_file() {
+PSQL=("$PG_BIN/psql" -X -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PORT" -d app)
+"${PSQL[@]}" -U postgres -d postgres -c "create database app" >/dev/null
+# Test files and *.test.sh scripts use these to reach the database.
+export ROOT PG_BIN PGHOST="$WORK" PGPORT="$PORT" PGDATABASE=app
+run_file() { # file [user]
   echo "  $1"
-  "${PSQL[@]}" -d app -f "$1"
+  "${PSQL[@]}" -U "${2:-postgres}" -f "$1"
 }
 
 echo "Auth shim:"
@@ -52,11 +54,18 @@ echo "Migrations:"
 shopt -s nullglob
 migrations=("$ROOT"/supabase/migrations/*.sql)
 [ ${#migrations[@]} -eq 0 ] && echo "  (none yet)"
-for f in "${migrations[@]}"; do run_file "$f"; done
+# Applied as `migrator`, a non-superuser like Supabase's `postgres` role.
+for f in "${migrations[@]}"; do run_file "$f" migrator; done
 
 echo "Tests:"
-tests=("$ROOT"/supabase/tests/*.test.sql)
+tests=("$ROOT"/supabase/tests/*.test.sql "$ROOT"/supabase/tests/*.test.sh)
 if [ ${#tests[@]} -eq 0 ]; then echo "run.sh: no test files found" >&2; exit 1; fi
-for f in "${tests[@]}"; do run_file "$f"; done
+IFS=$'\n' tests=($(printf '%s\n' "${tests[@]}" | sort)); unset IFS
+for f in "${tests[@]}"; do
+  case "$f" in
+    *.sh) echo "  $f"; bash "$f" ;;
+    *) run_file "$f" ;;
+  esac
+done
 
 echo "OK: database tests passed (${#migrations[@]} migration(s), ${#tests[@]} test file(s))."

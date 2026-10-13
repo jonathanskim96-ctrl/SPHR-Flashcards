@@ -65,3 +65,38 @@ Owner approved Phase 0 and asked for Phase 1 on the same branch, no merge to `ma
   totals, lesson invariants (no duplicates, no retired, no same-day repeats, selection only).
 - Coverage reached 100% by restructuring two unreachable fallbacks (not by excluding lines).
 - Settings default `reminderEnabled: false` (asked the owner; see HANDOFF).
+
+## 2026-10-13: Phase 2 (database)
+
+Owner approved Phase 1, chose the one-time reminder card (HANDOFF §2), and approved
+**option A** for the safety log: a single SECURITY DEFINER trigger function `log_change`.
+
+- Migrations 0001–0003 written and locked. Not run on Supabase yet.
+- Local harness now mimics Supabase more closely: migrations run as non-superuser
+  `migrator`; new tables/functions get Supabase's open default grants, so the tests prove
+  0002 revokes them.
+- Bugs the tests caught while building: a regex repetition `{16,256}` (Postgres max is 255)
+  in two push-subscription checks; the migration scanner flagging `create trigger … before
+  truncate` (a protective rule) as destructive, fixed by treating `create …` as non-destructive
+  (test added).
+- The recovery test runs the exact recovery files with only the `PASTE_…` values filled in,
+  as the non-superuser admin: look-first, dry run (writes nothing), restore (settings,
+  subscription and 10 deleted questions come back byte-identical; a question changed again
+  after the window is skipped), a second restore is a no-op, and wiped answers re-imported
+  from `tests/fixtures/sample-export.json` through `apply_changes` are identical.
+
+Mutation checks (2026-10-13; each change made to a copy, the full DB suite run, file restored):
+
+| Mutation | Caught by |
+|---|---|
+| attempts select policy `user_id = auth.uid()` → `true` | 20_rls "B sees A's answers" |
+| append-only trigger on attempts removed | 30_attack (service role update succeeded) |
+| 200-answer cap removed | 30_attack "too many answers" |
+| import "missing id" check removed | 40_import |
+| settings safety-log trigger removed | 10_schema |
+| mass-delete cap raised to 50 | 30_attack "limit 5" |
+| settings stale-write check removed | 20_rls conflict test |
+| override usable by app roles | **not caught at first** (grants block earlier); added a defence-in-depth test that grants the app delete rights in a rolled-back transaction; now caught |
+| recovery ignores "changed after the window" | 50_recovery |
+| xp check loosened in `attempt_problem` | 30_attack (constraint then fails the batch) |
+| `revoke … from anon` removed | 10_schema |

@@ -81,8 +81,9 @@ export function findUnapproved(sql) {
   for (let i = 0; i <= masked.length; i++) {
     if (i < masked.length && masked[i] !== ';') continue;
     const stmt = masked.slice(start, i);
-    // `revoke truncate ...` / `grant ...` only change permissions.
-    const isGrant = /^\s*(revoke|grant)\b/i.test(stmt);
+    // `grant`/`revoke` only change permissions; `create …` (a table, trigger, policy, function)
+    // defines something new, e.g. `create trigger … before truncate` is a rule that BLOCKS truncate.
+    const isGrant = /^\s*(revoke|grant|create)\b/i.test(stmt);
     if (!isGrant && DESTRUCTIVE.some((re) => re.test(stmt))) {
       const raw = sql.slice(start, i);
       if (!MARKER_RE.test(raw)) {

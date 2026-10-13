@@ -98,6 +98,7 @@ test('destructive statements need a guardrail-approved comment', () => {
     'alter table settings rename to old_settings;',
     'alter table attempts alter column xp type int;',
     'create table x (id int);\n\nDROP\n  TABLE x;',
+    'create table x (id int);\ntruncate x;',
   ]) {
     assert.equal(findUnapproved(sql).length, 1, sql);
   }
@@ -129,6 +130,8 @@ test('definitions, permissions, comments and strings are not destructive', () =>
       for each statement execute function block_changes();
     revoke truncate, references, trigger on all tables in schema public from authenticated;
     revoke all on attempts from anon;
+    create trigger no_truncate before truncate on attempts for each statement execute function block_changes();
+    create table archive as select * from attempts where false;
     alter table attempts enable row level security;
     create policy p on attempts for select to authenticated using (note <> 'drop table x;');
     create function f() returns void language sql as $body$ truncate t; $body$;

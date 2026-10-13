@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { answerFp } from './bank';
 import { buildExport, EXPORT_FORMAT, MAX_IMPORT_BYTES, previewImport } from './exportImport';
 import { mergeAttempts, replay } from './replay';
 import { defaultSettings } from './validate';
@@ -103,5 +104,16 @@ describe('export / import', () => {
       ok: false,
       error: 'The file is too large to be a progress export.',
     });
+  });
+});
+
+describe('tests/fixtures/sample-export.json (used by the database recovery test)', () => {
+  it('is a valid export whose answers match the fake bank', async () => {
+    const text = JSON.stringify((await import('../../tests/fixtures/sample-export.json')).default);
+    const r = previewImport(text, [], Date.parse('2026-10-13T00:00:00Z'));
+    if (!r.ok) throw new Error(r.error);
+    expect(r.preview.rejected).toEqual([]);
+    expect(r.preview.added).toHaveLength(36);
+    for (const a of r.preview.added) expect(a.answerFp).toBe(answerFp(q(bank, a.questionId)));
   });
 });

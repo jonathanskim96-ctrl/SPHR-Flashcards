@@ -66,20 +66,127 @@ the way they were **before** a time you choose, for the changes made **inside** 
 you choose, and leaves alone anything changed legitimately afterwards. The recovery test
 (`supabase/tests/recovery.sql`) runs this exact script on every CI run.
 
-Steps (the build session walks you through it and pastes the SQL in chat):
-1. **Look first (read-only):** the build session pastes a `select` that lists what changed
-   in the window, e.g. "settings: 1 update at 14:02; questions: 10 deletes at 14:03".
-   Run it in the SQL Editor and paste the result back to Claude.
-2. Claude shows you exactly which rows the restore will put back. You approve that one
-   restore in chat.
-3. Claude pastes the restore SQL, which begins with a line like
-   `-- guardrail-approved: Jonathan, <date>, restore settings after <what happened>`.
-   Run it. You should see a summary like `restored: settings 1, questions 10`.
-4. Check in the app.
+Steps (the build session walks you through it and pastes the SQL in chat, with the
+`PASTE_…` values already filled in):
+1. **Look first (read-only).** Supabase → **SQL Editor** → **New query** → paste the
+   "look first" query → **Run**. It lists what changed in the window, e.g.
+   `settings UPDATE 1`, `questions DELETE 10`. Copy the result back to Claude.
+2. **Dry run.** Paste the restore script with `PASTE_DRY_RUN` set to `true` → **Run**. It
+   changes nothing and lists each row as `WOULD BE restored …` or `WOULD BE skipped …`
+   (skipped = changed again after the window, so it is left alone). Copy the result back.
+3. **Approve.** Claude shows you exactly which rows the restore will put back. You approve
+   that one restore in chat.
+4. **Restore.** Claude pastes the same script with `PASTE_DRY_RUN` set to `false` and the
+   first line filled in (`-- guardrail-approved: Jonathan, <date>, <why>`) → **Run**. The
+   last result says e.g. `restored: questions 10, settings 1`. The SQL editor may warn about
+   "destructive operations": this script only inserts and updates; it never deletes.
+5. **Check in the app.** Running the script a second time is harmless: it says
+   `restored: nothing`.
 
-> The build session must replace this paragraph with the final, tested script text (and
-> the read-only "look first" query) once Phase 2 is done, so that this file always
-> contains the exact SQL the recovery test runs.
+The scripts below are the exact files the recovery test runs (`supabase/tests/50_recovery.test.sh`),
+and a test (`scripts/docs-sync.test.mjs`) fails if this page and the files ever differ.
+
+Look first, `supabase/recovery/look_first.sql`:
+
+<!-- file: supabase/recovery/look_first.sql -->
+```sql
+-- READ-ONLY. Lists what changed between two times, from the safety log (RECOVERY.md §5).
+-- Replace PASTE_FROM_TIME and PASTE_TO_TIME with times in UTC, e.g. 2026-11-02 14:00:00+00
+select table_name, op, count(*) as changes, min(at) as first_change, max(at) as last_change
+from public.safety_log
+where at >= timestamptz 'PASTE_FROM_TIME' and at < timestamptz 'PASTE_TO_TIME'
+group by table_name, op
+order by table_name, op;
+```
+
+Restore, `supabase/recovery/restore_from_safety_log.sql`:
+
+<!-- file: supabase/recovery/restore_from_safety_log.sql -->
+```sql
+-- guardrail-approved: PASTE_WHO_DATE_WHY
+-- Puts rows back the way they were just BEFORE a time window, for rows changed or deleted
+-- INSIDE the window (RECOVERY.md §5). Run only after the owner approved this exact restore.
+-- It never deletes anything. Rows changed again after the window are left alone (listed as
+-- skipped), and answers (attempts) are never touched: they are restored by importing an
+-- export file in the app.
+--
+-- Fill in the three PASTE_ values (keep the quotes). Times are UTC, e.g. 2026-11-02 14:00:00+00
+-- PASTE_DRY_RUN: 'true' only lists what would happen; 'false' restores.
+begin;
+
+create temp table recovery_window on commit drop as
+select timestamptz 'PASTE_FROM_TIME' as from_at,
+       timestamptz 'PASTE_TO_TIME' as to_at,
+       'PASTE_DRY_RUN'::boolean as dry_run;
+
+create temp table recovery_result (table_name text, row_key text, action text) on commit drop;
+
+do $$
+declare
+  w record;
+  t record;
+  c record;
+  cols text;
+  cur jsonb;
+  action text;
+begin
+  select * into w from recovery_window;
+  if w.to_at <= w.from_at then
+    raise exception 'the end of the window must be after the start';
+  end if;
+
+  for t in select * from (values ('bank_meta', 'id'), ('scenarios', 'id'), ('questions', 'id'),
+                                 ('settings', 'user_id'), ('push_subscriptions', 'id')) v(name, pk) loop
+    select string_agg(quote_ident(column_name), ', ' order by ordinal_position) into cols
+    from information_schema.columns
+    where table_schema = 'public' and table_name = t.name and is_generated = 'NEVER'
+      and coalesce(identity_generation, '') <> 'ALWAYS';
+
+    for c in
+      select l.old_row ->> t.pk as row_key,
+             (array_agg(l.old_row order by l.at, l.id))[1] as before_row,
+             (array_agg(l.op order by l.at desc, l.id desc))[1] as last_op
+      from public.safety_log l
+      where l.table_name = t.name and l.at >= w.from_at and l.at < w.to_at
+      group by 1
+      order by 1
+    loop
+      execute format('select to_jsonb(x) from public.%I x where x.%I::text = $1', t.name, t.pk)
+        into cur using c.row_key;
+      if exists (select 1 from public.safety_log l
+                 where l.table_name = t.name and l.old_row ->> t.pk = c.row_key and l.at >= w.to_at) then
+        action := 'skipped: changed again after the window';
+      elsif cur is null then
+        action := 'restored (put back)';
+        if not w.dry_run then
+          execute format('insert into public.%I (%s) select %s from jsonb_populate_record(null::public.%I, $1)',
+                         t.name, cols, cols, t.name) using c.before_row;
+        end if;
+      elsif c.last_op = 'DELETE' then
+        action := 'skipped: re-created after the window';
+      elsif cur = c.before_row then
+        action := 'skipped: already as before';
+      else
+        action := 'restored (changed back)';
+        if not w.dry_run then
+          execute format('update public.%I x set (%s) = (select %s from jsonb_populate_record(null::public.%I, $1)) where x.%I::text = $2',
+                         t.name, cols, cols, t.name, t.pk) using c.before_row, c.row_key;
+        end if;
+      end if;
+      insert into recovery_result values (t.name, c.row_key,
+        case when w.dry_run then 'WOULD BE ' || action else action end);
+    end loop;
+  end loop;
+end $$;
+
+select table_name, row_key, action from recovery_result order by table_name, row_key;
+select case when (select dry_run from recovery_window) then 'DRY RUN, nothing changed. ' else '' end
+       || 'restored: ' || coalesce((select string_agg(table_name || ' ' || n, ', ' order by table_name)
+          from (select table_name, count(*) n from recovery_result
+                where action like '%restored%' group by table_name) s), 'nothing') as summary;
+
+commit;
+```
 
 ## 6. Supabase project paused
 

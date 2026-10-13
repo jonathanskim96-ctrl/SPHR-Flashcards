@@ -3,7 +3,7 @@ do $$
 declare
   a uuid := '00000000-0000-4000-8000-00000000000a';
 begin
-  insert into auth.users (id, email) values (a, 'fake-a@example.test');
+  insert into auth.users (id, email) values (a, 'harness@example.test');
 
   perform set_config('request.jwt.claims', '', true);
   assert auth.uid() is null, 'no claims: auth.uid() must be null';

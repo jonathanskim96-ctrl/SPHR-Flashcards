@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultSettings,
+  jsonbText,
   MAX_RESPONSE_BYTES,
   SETTINGS_LIMITS,
   validateAttempt,
@@ -83,6 +84,7 @@ describe('validateResponse', () => {
     { type: 'mc', choice: 5 },
     { type: 'mc', choice: 'A', extra: 1 },
     { type: 'mc', choice: 'x'.repeat(65) },
+    { type: 'mc', choice: 'é'.repeat(33) }, // 66 bytes
     { type: 'multi', choices: 'A' },
     { type: 'multi', choices: [1] },
     { type: 'multi', choices: Array(21).fill('A') },
@@ -96,11 +98,13 @@ describe('validateResponse', () => {
     expect(validateResponse(r).ok).toBe(false);
   });
 
-  it(`rejects a response over ${MAX_RESPONSE_BYTES} bytes, counted in UTF-8`, () => {
-    const fits = { type: 'text', input: 'x'.repeat(MAX_RESPONSE_BYTES - 26) };
-    expect(new TextEncoder().encode(JSON.stringify(fits)).length).toBe(MAX_RESPONSE_BYTES);
+  it(`rejects a response over ${MAX_RESPONSE_BYTES} bytes, measured as the database prints it`, () => {
+    // Postgres prints {"type": "text", "input": "…"}: 29 bytes around the input.
+    const fits = { type: 'text', input: 'x'.repeat(MAX_RESPONSE_BYTES - 29) };
+    expect(jsonbText(fits)).toBe(`{"type": "text", "input": "${fits.input}"}`);
+    expect(new TextEncoder().encode(jsonbText(fits)!).length).toBe(MAX_RESPONSE_BYTES);
     expect(validateResponse(fits).ok).toBe(true);
-    expect(validateResponse({ type: 'text', input: 'x'.repeat(MAX_RESPONSE_BYTES - 25) }).ok).toBe(
+    expect(validateResponse({ type: 'text', input: 'x'.repeat(MAX_RESPONSE_BYTES - 28) }).ok).toBe(
       false,
     );
     expect(validateResponse({ type: 'text', input: 'é'.repeat(1100) }).ok).toBe(false); // 2,200 bytes
@@ -108,6 +112,28 @@ describe('validateResponse', () => {
       ok: false,
       errors: ['response is larger than 2048 bytes'],
     });
+  });
+});
+
+describe('characters the database cannot store', () => {
+  it.each(['a\u0000b', '\uD800', 'x\uDC00', '\uDC00\uD800'])('rejects %j', (input) => {
+    expect(validateResponse({ type: 'text', input })).toEqual({
+      ok: false,
+      errors: ['response contains a character that cannot be stored'],
+    });
+    expect(validateResponse({ type: 'matching', pairs: { [input]: 'A' } }).ok).toBe(false);
+    expect(validateResponse({ type: 'multi', choices: [input] }).ok).toBe(false);
+  });
+
+  it('accepts emoji, accents, curly quotes and control characters other than NUL', () => {
+    for (const input of ['😀 café ’', 'line\nbreak\t', '\u0001'])
+      expect(validateResponse({ type: 'text', input }).ok).toBe(true);
+  });
+
+  it('jsonbText formats nested values like Postgres', () => {
+    expect(jsonbText({ a: [1, true, null, 'x'], b: {} })).toBe(
+      '{"a": [1, true, null, "x"], "b": {}}',
+    );
   });
 });
 

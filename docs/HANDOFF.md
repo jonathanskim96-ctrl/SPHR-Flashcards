@@ -4,9 +4,20 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 1 (domain layer) is built** on branch `ccr-67c10ae0-ubtsvr`, waiting for the
-  owner's OK before Phase 2 or any merge to `main`. Phase 0 was approved by the owner on
-  2026-10-13. The app still shows a placeholder screen (UI is Phase 5).
+- **Phase 2 (database) is built** on branch `ccr-67c10ae0-ubtsvr`, waiting for the owner's
+  OK before Phase 3 or any merge to `main`. Phases 0 and 1 were approved on 2026-10-13.
+  **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
+  Part B3 runs them later). The app still shows a placeholder screen.
+- Phase 2 contents: `supabase/migrations/0001_init.sql` (tables + constraints),
+  `0002_guardrails.sql` (safety log, append-only/no-delete/no-truncate triggers, mass-delete
+  cap, grants, forced RLS), `0003_rpc.sql` (`apply_changes`, `save_push_subscription`,
+  `disable_push_subscription`, `import_bank`, `keepalive`, validators), all three locked in
+  `migrations.lock.json`. `supabase/recovery/look_first.sql` and
+  `restore_from_safety_log.sql` (copied verbatim into RECOVERY.md §5, checked by
+  `scripts/docs-sync.test.mjs`). Tests in `supabase/tests/`: `10_schema` (structural
+  guardrails for every table/function, incl. future ones), `20_rls`, `30_attack`,
+  `40_import` (incl. a preview+apply of the real bank, rolled back), `50_recovery.test.sh`.
+  11 mutation checks recorded in NOTES.md, all caught.
 - Phase 1 contents (`src/domain/`, pure, no I/O): `types.ts`, `dates.ts` (local dates via
   Intl), `textNorm.ts`, `bank.ts` (normalizeBank, compareBankVersion, answerFp),
   `grade.ts`, `xp.ts`, `schedule.ts`, `replay.ts`, `shuffle.ts`, `lesson.ts`,
@@ -73,6 +84,8 @@ Decided in the planning session (2026-10-13):
 | Mistakes deck | A card leaves after **2 correct answers in a row** (always on different days) |
 | GitHub | **Ruleset on `main`** blocking force-push and deletion |
 | Exam date | **December 15, 2026** (default in Settings; she can change it) |
+| Reminder on first install | **Off until she turns it on; a one-time home-screen card offers "Turn on daily reminder (3:00 PM)?"** with a button; dismissing it leaves Settings as the way to turn it on (decided 2026-10-13, Phase 1) |
+| Safety-log writer | **Option A approved**: one SECURITY DEFINER trigger function (`log_change`) writes the safety log; the app has no access to the log (decided 2026-10-13, Phase 2) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
 Design choices made in planning (no product trade-off, but worth knowing):
@@ -100,10 +113,6 @@ changing):
 **Needs the owner's input**
 1. Michelle's sign-in email, needed for SETUP step B6. Give it to Claude only if you want
    it written into the docs; otherwise just use it in the dashboard.
-1b. (Asked 2026-10-13, Phase 1) Daily reminder on first install: the code currently starts
-   with the reminder **off** until Michelle taps to turn it on (iOS only allows the
-   notification permission prompt from a tap). Options asked: keep off + one-time prompt
-   card (recommended), or off with no prompt. Needed before Phase 7.
 
 **Content (for the owner's question-writing project; no app action needed)**
 2. 102 free-response worksheet items were rewritten as multiple choice.
@@ -130,14 +139,28 @@ changing):
    dates follow the current Settings time zone, so changing it recalculates the calendar day of
    past answers; a Mistakes card is ordered by the date of its most recent wrong answer;
    attempts are checked for ≤ 1 day in the future against the device clock.
-11. CI installs Playwright's Chromium on the GitHub runner (`npx playwright install`); the
+11. Phase 2 implementation notes: (a) the app role gets **column-limited** insert/update on
+   `push_subscriptions` and `settings` (the RPCs are security invoker, so they need it; the
+   plan said select-only for push_subscriptions). It can never set `user_id`, `seq`,
+   `received_at`, `failure_count` or `last_success_at`, and can never delete. (b) RLS is
+   forced on every table, with an `admin_all` policy for roles other than anon/authenticated
+   so the SQL editor's postgres role and the service role (import, reminders, recovery) keep
+   working. (c) `apply_changes` rejects bad answers one by one (`rejected: [{index, id,
+   reason}]`) and saves the good ones; bad settings come back as `settings_error`.
+   (d) The import lets a question be **retired without raising its revision** (SETUP Part F
+   only says to set the status); any other content change needs a raised revision.
+   (e) TRUNCATE is blocked by a trigger on every table, even for the table owner.
+   (f) To match the database exactly, Phase 1's validator now measures answer size the way
+   Postgres prints JSON, rejects NUL and broken-emoji characters, limits the exam date to
+   2000–2100, and checks timestamp hours/minutes/seconds ranges.
+12. CI installs Playwright's Chromium on the GitHub runner (`npx playwright install`); the
    cloud session never does (it uses the pre-installed one).
 
 **Unverified facts (confirm during SETUP)**
-12. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
+13. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
    SETUP Part G lists what to check on the live dashboard.
-13. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
+14. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
     emails first, and re-enabling is one click (SETUP Part D). Any commit resets the clock.
 
 ## 4. Platform facts this plan relies on
@@ -173,4 +196,5 @@ npm run e2e                                # Playwright, iPhone 13 Pro Max profi
 `npm test` runs vitest and the Node guardrail tests (`scripts/*.test.mjs`: validator
 self-test on `tests/fixtures/bad-banks/`, `--previous`, check-migrations, build-bank).
 `run.sh` needs a local PostgreSQL (`initdb`); as root it runs the server as the `postgres`
-OS user. Migrations are added with `node scripts/check-migrations.mjs --record` once final.
+OS user. It applies the migrations as `migrator`, a non-superuser standing in for Supabase's
+`postgres` role, with Supabase-like default grants, so missing revokes are caught. Migrations are added with `node scripts/check-migrations.mjs --record` once final.

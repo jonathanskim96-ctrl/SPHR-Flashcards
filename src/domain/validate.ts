@@ -14,6 +14,8 @@ export const SETTINGS_LIMITS = {
 } as const;
 
 export const MAX_RESPONSE_BYTES = 2048;
+export const EXAM_DATE_MIN = '2000-01-01';
+export const EXAM_DATE_MAX = '2100-12-31';
 export const MAX_QUESTION_ID = 64;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FP_RE = /^[0-9a-f]{16}$/;
@@ -56,7 +58,8 @@ export function validateSettings(v: unknown): Result<Settings> {
     const { min, max } = SETTINGS_LIMITS[k];
     if (!isIntIn(v[k], min, max)) errors.push(`${k} must be a whole number from ${min} to ${max}`);
   }
-  if (!isLocalDate(v.examDate)) errors.push('examDate must be a real date YYYY-MM-DD');
+  if (!isLocalDate(v.examDate) || v.examDate < EXAM_DATE_MIN || v.examDate > EXAM_DATE_MAX)
+    errors.push(`examDate must be a real date from ${EXAM_DATE_MIN} to ${EXAM_DATE_MAX}`);
   if (typeof v.reminderEnabled !== 'boolean') errors.push('reminderEnabled must be true or false');
   if (typeof v.reminderTime !== 'string' || !TIME_RE.test(v.reminderTime))
     errors.push('reminderTime must be HH:MM in 15-minute steps');
@@ -70,8 +73,37 @@ export function validateSettings(v: unknown): Result<Settings> {
   };
 }
 
+// A NUL character or half of a surrogate pair cannot be stored in a Postgres jsonb value.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+const unstorable = (s: string) => s.includes(String.fromCharCode(0)) || LONE_SURROGATE.test(s);
+
+/**
+ * The text Postgres prints for a jsonb value (`{"a": 1, "b": [1, 2]}`), whose UTF-8 length
+ * is what the database's size limit measures. Null if a string cannot be stored at all.
+ * Handles the JSON produced by responses: objects, arrays, strings, numbers, booleans.
+ */
+export function jsonbText(v: unknown): string | null {
+  if (typeof v === 'string') return unstorable(v) ? null : JSON.stringify(v);
+  if (Array.isArray(v)) {
+    const items = v.map(jsonbText);
+    return items.includes(null) ? null : `[${items.join(', ')}]`;
+  }
+  if (typeof v === 'object' && v !== null) {
+    const entries = Object.entries(v).map(([k, x]) => {
+      const key = jsonbText(k);
+      const val = jsonbText(x);
+      return key === null || val === null ? null : `${key}: ${val}`;
+    });
+    return entries.includes(null) ? null : `{${entries.join(', ')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/** Ids in responses: at most 64 bytes in UTF-8 (the database measures bytes). */
+const isId = (x: unknown): x is string =>
+  typeof x === 'string' && new TextEncoder().encode(x).length <= 64;
 const isIdList = (v: unknown, max: number): v is string[] =>
-  Array.isArray(v) && v.length <= max && v.every((x) => typeof x === 'string' && x.length <= 64);
+  Array.isArray(v) && v.length <= max && v.every(isId);
 
 export function validateResponse(v: unknown): Result<Response> {
   if (!isObj(v)) return { ok: false, errors: ['response must be an object'] };
@@ -79,7 +111,7 @@ export function validateResponse(v: unknown): Result<Response> {
   let ok = false;
   switch (v.type) {
     case 'mc':
-      ok = keys === 'choice,type' && typeof v.choice === 'string' && v.choice.length <= 64;
+      ok = keys === 'choice,type' && isId(v.choice);
       break;
     case 'multi':
       ok = keys === 'choices,type' && isIdList(v.choices, 20);
@@ -96,13 +128,14 @@ export function validateResponse(v: unknown): Result<Response> {
         keys === 'pairs,type' &&
         isObj(v.pairs) &&
         Object.keys(v.pairs).length <= 20 &&
-        Object.entries(v.pairs).every(
-          ([k, x]) => k.length <= 64 && typeof x === 'string' && x.length <= 64,
-        );
+        Object.entries(v.pairs).every(([k, x]) => isId(k) && isId(x));
       break;
   }
   if (!ok) return { ok: false, errors: ['response has the wrong shape for its type'] };
-  if (new TextEncoder().encode(JSON.stringify(v)).length > MAX_RESPONSE_BYTES)
+  const text = jsonbText(v);
+  if (text === null)
+    return { ok: false, errors: ['response contains a character that cannot be stored'] };
+  if (new TextEncoder().encode(text).length > MAX_RESPONSE_BYTES)
     return { ok: false, errors: [`response is larger than ${MAX_RESPONSE_BYTES} bytes`] };
   return { ok: true, value: v as Response };
 }

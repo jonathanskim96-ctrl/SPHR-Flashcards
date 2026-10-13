@@ -49,7 +49,7 @@ export function localDateOf(instant: string | number | Date, timeZone: string): 
 }
 
 /** Strict ISO 8601 timestamp with a zone (`Z` or `±HH:MM`), as produced by toISOString(). */
-const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/;
 
 export function isIsoTimestamp(s: unknown): s is string {
   return (
