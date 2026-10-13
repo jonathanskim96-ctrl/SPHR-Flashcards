@@ -304,3 +304,15 @@ Mutation checks (each made to the file, the tests run, the file restored; all ca
 | Home card ignores "Not now" | reminder.test (2) |
 | worker shows the push message's own text | push-sw.test |
 | worker opens a new window when the app is open | push-sw.test |
+
+## 2026-10-13: Phase 7 approved; a CI failure fixed
+
+Owner approved Phase 7 and kept the "up to 1 hour late, once" reminder (HANDOFF §2).
+
+CI on the Phase 7 commit failed in `Settings.test.tsx` "previews an import…", the same test
+that failed once in Phase 6. CI's page dump showed "27 answers waiting to back up" when the
+test gave up: the import saves 36 answers one by one and was still running when the test's
+default 1-second wait for the "Imported 36 new answers" message ran out on the busier CI
+runner. Not reproduced locally (passes alone, in the full suite, and with the suite pinned to
+one CPU core). Fix: that wait (and the next one) now allows 10 seconds; the assertions are
+unchanged. No app code changed.

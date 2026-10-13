@@ -213,9 +213,16 @@ describe('Settings: backup status, export and import', () => {
     expect(dialog.textContent).toContain('nothing is removed');
     await user.click(within(dialog).getByRole('checkbox', { name: 'Also restore settings' }));
     await user.click(within(dialog).getByRole('button', { name: 'Import' }));
-    expect(await screen.findByText(/Imported 36 new answers\. Settings restored\./)).toBeTruthy();
-    await waitFor(() =>
-      expect((screen.getByLabelText(/Cards per lesson/) as HTMLInputElement).value).toBe('12'),
+    // 36 answers are saved one by one; on a busy CI runner that takes longer than the default
+    // 1 s wait (it failed once at 27 of 36). Only the wait is longer; the check is the same.
+    const SLOW = { timeout: 10_000 };
+    expect(
+      await screen.findByText(/Imported 36 new answers\. Settings restored\./, {}, SLOW),
+    ).toBeTruthy();
+    await waitFor(
+      () =>
+        expect((screen.getByLabelText(/Cards per lesson/) as HTMLInputElement).value).toBe('12'),
+      SLOW,
     );
     // Importing the same file again adds nothing, and the Import button is off.
     await upload(user, file('progress.json', JSON.stringify(sampleExport)));

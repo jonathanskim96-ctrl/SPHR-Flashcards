@@ -4,10 +4,9 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 7 (daily reminder) is built, waiting for the owner's OK** (2026-10-13) on branch
-  `ccr-67c10ae0-ubtsvr`. Phases 0–6 approved (Phase 6 approved 2026-10-13); nothing merged to
-  `main`. **Next: Phase 8** (backups, keep-alive, question import), in a new chat (see §6),
-  only after the owner approves Phase 7.
+- **Phase 7 (daily reminder) approved** by the owner (2026-10-13) on branch
+  `ccr-67c10ae0-ubtsvr`. Phases 0–7 approved; nothing merged to `main`. **Next: Phase 8**
+  (backups, keep-alive, question import), in a new chat (see §6).
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
   Part B3 runs them later). Until then the real app shows "The app is not configured" (the
   Supabase address and key are repo variables set in SETUP); everything was tested against
@@ -26,7 +25,7 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
   the run's time is rounded to the nearest quarter hour; the reminder time "happens" at the
   first quarter-hour of the local day whose clock is at or past it (so 2:30 AM on the
   spring-forward night goes at 3:00 AM; the repeated 1–2 AM hour in the fall counts once);
-  a run may send up to 1 hour after that if the earlier run failed (see §3 item 19).
+  a run may send up to 1 hour after that if the earlier run failed (owner's decision, §2).
   **App:** `src/data/push.ts` (permission request made synchronously from the tap, then
   `pushManager.subscribe({userVisibleOnly: true})` with the VAPID key, then
   `save_push_subscription`; turning off saves `reminderEnabled: false` then calls
@@ -213,6 +212,8 @@ Decided in the planning session (2026-10-13):
 | Chats and models | **One new chat per phase.** Opus for Phases 3, 7, 9; Sonnet is fine for 4, 5, 6, 8 (see §6). Every end-of-phase report tells the owner to open a new chat (decided 2026-10-13) |
 | Phase 5 screen defaults | **All five kept as built** (2026-10-13): remembered area/tier choice with the last one unswitchable; ✕ quits with no question; one Save button for pace fields, reminder saves at once and asks before turning off; one-line hints on Ordering and Matching; a wrong choice stays highlighted green (the owner chose "keep" over the recommended dimming; revisit only if asked) |
 | Phase 6 | **Approved** 2026-10-13 (start of the Phase 7 chat) |
+| Phase 7 | **Approved** 2026-10-13 |
+| Late reminder | **Up to 1 hour late, once**, when the run at her chosen time fails or she picks a time that has just passed (the alternative, skipping that day, was declined). `CATCH_UP_MS` in `supabase/functions/send-reminders/index.ts` (decided 2026-10-13, Phase 7) |
 | Phase 6 choices | **App icon:** white "SPHR" letters on the app's green. **Safari (not installed):** the "Add to Home Screen" steps card appears at the top of Settings only, in place of the reminder switch; Home is unchanged (decided 2026-10-13) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
@@ -372,10 +373,7 @@ changing):
    inside Supabase's own Edge runtime (verified in Deno 2.9 locally, against a local HTTPS
    push server), that `SUPABASE_SERVICE_ROLE_KEY` is provided to functions on a new project,
    and real delivery to an iPhone. SETUP Part G step 4 and INSTALL §5 check them.
-19. **For the owner to confirm (Phase 7):** if the 3:00 PM run fails (a Supabase hiccup) or
-   she picks a time that has just passed, the next run sends the reminder up to **1 hour
-   late** (once). The alternative is to skip that day. Built as "up to 1 hour late"; it is a
-   one-line change (`CATCH_UP_MS` in the function).
+19. (Resolved 2026-10-13) Late reminder: the owner kept "up to 1 hour late, once" (§2).
 
 **Unverified facts (confirm during SETUP)**
 17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
