@@ -5,11 +5,14 @@ import { createSupabaseBackend } from '../data/supabaseBackend';
 import { createAppClient } from '../data/supabaseClient';
 import type { Rng } from '../domain/shuffle';
 import { supabaseAuth, type AuthApi } from './auth';
+import { isStandalone } from './install';
 
 export interface AppEnv {
   now(): number;
   /** Used for the display order of choices; never affects grading. */
   rng: Rng;
+  /** Opened from the Home Screen icon (an installed app), not a browser tab. */
+  installed: boolean;
 }
 
 export interface AppDeps {
@@ -26,6 +29,6 @@ export function productionDeps(): AppDeps {
   return {
     auth: supabaseAuth(client),
     backend: createSupabaseBackend(client),
-    env: { now: Date.now, rng: Math.random },
+    env: { now: Date.now, rng: Math.random, installed: isStandalone() },
   };
 }

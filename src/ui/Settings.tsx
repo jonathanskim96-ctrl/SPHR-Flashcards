@@ -14,6 +14,7 @@ import type { AuthApi } from './auth';
 import type { AppEnv } from './deps';
 import { ConfirmDialog } from './Dialog';
 import { SyncStatusLine } from './SyncStatusLine';
+import { OfflineLine } from './UpdateBanner';
 import type { Study } from './useStudy';
 
 /** `15:00` → `3:00 PM`. */
@@ -266,33 +267,51 @@ export function Settings({
 
       <section className="stack" aria-label="Daily reminder">
         <h2>Daily reminder</h2>
-        <label className="switch-row">
-          <input
-            type="checkbox"
-            role="switch"
-            checked={s.reminderEnabled}
-            onChange={(e) =>
-              e.target.checked
-                ? void setReminder({ reminderEnabled: true })
-                : setConfirm('reminder-off')
-            }
-          />
-          <span>Remind me every day</span>
-        </label>
-        <label>
-          Time
-          <select
-            value={s.reminderTime}
-            onChange={(e) => void setReminder({ reminderTime: e.target.value })}
-          >
-            {REMINDER_TIMES.map((t) => (
-              <option key={t} value={t}>
-                {timeLabel(t)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="muted">Time zone: {s.timeZone}</p>
+        {!env.installed ? (
+          <div className="card stack" aria-label="Add to Home Screen">
+            <p>
+              <strong>Add this app to your Home Screen first.</strong> Reminders only work from the
+              app icon.
+            </p>
+            <ol>
+              <li>In Safari, tap the Share button (a square with an arrow).</li>
+              <li>
+                Tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.
+              </li>
+              <li>Open the SPHR icon and come back to this screen.</li>
+            </ol>
+          </div>
+        ) : (
+          <>
+            <label className="switch-row">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={s.reminderEnabled}
+                onChange={(e) =>
+                  e.target.checked
+                    ? void setReminder({ reminderEnabled: true })
+                    : setConfirm('reminder-off')
+                }
+              />
+              <span>Remind me every day</span>
+            </label>
+            <label>
+              Time
+              <select
+                value={s.reminderTime}
+                onChange={(e) => void setReminder({ reminderTime: e.target.value })}
+              >
+                {REMINDER_TIMES.map((t) => (
+                  <option key={t} value={t}>
+                    {timeLabel(t)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">Time zone: {s.timeZone}</p>
+          </>
+        )}
       </section>
 
       <section className="stack" aria-label="Backup">
@@ -356,7 +375,10 @@ export function Settings({
         </button>
       </section>
 
-      <footer className="muted footer">Build {__BUILD_ID__}</footer>
+      <footer className="muted footer">
+        <div>Build {__BUILD_ID__}</div>
+        <OfflineLine />
+      </footer>
 
       {confirm === 'reminder-off' && (
         <ConfirmDialog

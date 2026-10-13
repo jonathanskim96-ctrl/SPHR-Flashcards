@@ -12,6 +12,7 @@ import { Home, mistakesCount } from './ui/Home';
 import { Lesson, type CardResult } from './ui/Lesson';
 import { Settings } from './ui/Settings';
 import { SignIn } from './ui/SignIn';
+import { UpdateBanner } from './ui/UpdateBanner';
 import { useStudy } from './ui/useStudy';
 
 type Phase =
@@ -19,7 +20,16 @@ type Phase =
   | { name: 'signed-out'; error: string | null }
   | { name: 'ready'; session: Session };
 
-export function App({ makeDeps = productionDeps }: { makeDeps?: () => AppDeps }) {
+export function App(props: { makeDeps?: () => AppDeps }) {
+  return (
+    <>
+      <UpdateBanner />
+      <Root {...props} />
+    </>
+  );
+}
+
+function Root({ makeDeps = productionDeps }: { makeDeps?: () => AppDeps }) {
   const built = useMemo(() => {
     try {
       return { deps: makeDeps(), error: null };

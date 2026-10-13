@@ -57,7 +57,7 @@ async function show(id: string) {
     <Lesson
       session={session}
       bank={bank}
-      env={{ now: () => clock.now, rng: seededRng(1) }}
+      env={{ now: () => clock.now, rng: seededRng(1), installed: true }}
       mode="lesson"
       initial={[question]}
       onEnd={() => {}}

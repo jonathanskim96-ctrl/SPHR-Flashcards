@@ -69,7 +69,7 @@ describe('sign in', () => {
         signOut: async () => ({ error: null }),
       },
       backend: new FakeServer().backend(),
-      env: { now: () => clock.now, rng: Math.random },
+      env: { now: () => clock.now, rng: Math.random, installed: true },
     };
     render(<App makeDeps={() => deps} />);
     expect((await screen.findByRole('alert')).textContent).toContain('storage is blocked');
@@ -97,7 +97,7 @@ describe('sign in', () => {
         signOut: async () => ({ error: null }),
       },
       backend: h.server.backend(),
-      env: { now: () => clock.now, rng: Math.random },
+      env: { now: () => clock.now, rng: Math.random, installed: true },
       sessionOptions: { factory: {} as IDBFactory },
     };
     render(<App makeDeps={() => deps} />);

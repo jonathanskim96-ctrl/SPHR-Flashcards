@@ -27,6 +27,8 @@ export async function harness(
     bundledFails?: boolean;
     /** The server cannot be reached from the start. */
     offline?: boolean;
+    /** Opened from the Home Screen icon (default) rather than a browser tab. */
+    installed?: boolean;
   } = {},
 ) {
   const clock = new Clock();
@@ -54,7 +56,7 @@ export async function harness(
   const deps: AppDeps = {
     auth,
     backend: server.backend(),
-    env: { now: () => clock.now, rng: seededRng(7) },
+    env: { now: () => clock.now, rng: seededRng(7), installed: opts.installed ?? true },
     sessionOptions: {
       factory,
       env: net.env,

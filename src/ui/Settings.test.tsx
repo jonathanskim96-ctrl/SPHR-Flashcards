@@ -310,3 +310,20 @@ describe('Settings: sign out', () => {
     expect(within(box).getByRole('button', { name: 'Export progress' })).toBeTruthy();
   });
 });
+
+describe('Settings: installed or not', () => {
+  it('in a browser tab, shows the Add to Home Screen steps instead of the reminder switch', async () => {
+    const { user } = await harness({ installed: false });
+    await openSettings(user);
+    expect(screen.getByLabelText('Add to Home Screen').textContent).toContain('Add to Home Screen');
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByLabelText('Time')).toBeNull();
+  });
+
+  it('from the Home Screen icon, shows the reminder switch and no install steps', async () => {
+    const { user } = await harness({ installed: true });
+    await openSettings(user);
+    expect(screen.getByRole('switch')).toBeTruthy();
+    expect(screen.queryByLabelText('Add to Home Screen')).toBeNull();
+  });
+});

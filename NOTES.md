@@ -226,3 +226,34 @@ Mutation checks (2026-10-13; each made to the file, the tests run, the file rest
 ## 2026-10-13: Phase 5 approved
 
 Owner approved Phase 5 and kept all five small defaults as built (HANDOFF §2). Phase 6 starts in a new chat (Sonnet, HANDOFF §6).
+
+## 2026-10-13: Phase 6 (PWA, install, update)
+
+Built in a new chat on `ccr-67c10ae0-ubtsvr`, as BUILD_PLAN Phase 6 describes (details in
+HANDOFF §1). Owner's choices: icon = white "SPHR" on green; install card at the top of
+Settings only.
+
+- A real bug the update test found: the first version of `src/pwa.ts` decided "this is an
+  update" once, at page load, so a page that loaded *before* any worker existed (first visit)
+  never showed the banner for the first update. It now tracks, at the moment of each
+  takeover, whether the page already had a worker.
+- The new strict CSP (`style-src 'self'`, `script-src 'self'`) did not break anything: the
+  touch-drag and Settings browser tests listen for CSP violations and found none.
+- Playwright's built-in "service workers" setting is `block` for the older tests (a worker
+  hides requests from the pretend server) and `allow` only in `e2e/pwa.spec.ts`.
+- One flaky unit-test failure seen once in the full run (`Settings.test.tsx` "previews an
+  import…"); it passed alone and in three further full runs. Cause not found; likely the
+  machine being busy (same class as the Phase 5 time-out note above). Watch for it.
+
+Mutation checks (each made to the file, the tests run, the file restored):
+
+| Mutation | Caught by |
+|---|---|
+| first install counted as an update | `pwa.test` "first install … is not an update" |
+| update never flagged | `pwa.test`, `UpdateBanner.test` (3 failures) |
+| CSP `connect-src *` | `scripts/csp.test.mjs` (2 failures) |
+| CSP `script-src` allows `'unsafe-inline'` | `scripts/csp.test.mjs` |
+| install card never shown | `Settings.test` "in a browser tab…" |
+| iOS `navigator.standalone` flag ignored | `install.test` |
+| (found by the e2e update test, then fixed) banner decided at load | `e2e/pwa.spec.ts` update flow |
+

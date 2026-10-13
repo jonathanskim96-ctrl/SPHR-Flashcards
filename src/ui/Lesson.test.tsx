@@ -34,7 +34,7 @@ async function setup(ids: string[]) {
     <Lesson
       session={session}
       bank={bank}
-      env={{ now: () => clock.now, rng: seededRng(3) }}
+      env={{ now: () => clock.now, rng: seededRng(3), installed: true }}
       mode="lesson"
       initial={questions}
       onEnd={(r) => ended.push(r)}

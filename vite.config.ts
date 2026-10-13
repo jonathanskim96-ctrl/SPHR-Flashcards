@@ -1,3 +1,4 @@
+import { loadEnv, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -6,15 +7,57 @@ import { VitePWA } from 'vite-plugin-pwa';
 const BASE = '/SPHR-Flashcards/';
 
 // Shown in the Settings footer so she can tell which version is running.
-const BUILD_ID = `${new Date().toISOString().slice(0, 10)}-${(process.env.GITHUB_SHA ?? 'dev').slice(0, 7)}`;
+// BUILD_ID can be set by hand (the update test builds two different versions).
+const BUILD_ID =
+  process.env.BUILD_ID ??
+  `${new Date().toISOString().slice(0, 10)}-${(process.env.GITHUB_SHA ?? 'dev').slice(0, 7)}`;
 
-export default defineConfig({
+/**
+ * The Content-Security-Policy as a <meta> tag, added to the built page only (the dev server
+ * needs inline scripts). connect-src is limited to this site and the Supabase project.
+ * frame-ancestors cannot be set from a meta tag (browsers ignore it there); the frame-busting
+ * check in src/frameBust.ts covers that instead.
+ */
+export function contentSecurityPolicy(supabaseUrl: string | undefined): string {
+  const connect = ["'self'"];
+  if (supabaseUrl) connect.push(new URL(supabaseUrl).origin);
+  return [
+    "default-src 'self'",
+    `connect-src ${connect.join(' ')}`,
+    "img-src 'self' data:",
+    "style-src 'self'",
+    "script-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+}
+
+function cspPlugin(supabaseUrl: string | undefined): Plugin {
+  return {
+    name: 'sphr-csp',
+    apply: 'build',
+    transformIndexHtml: () => [
+      {
+        tag: 'meta',
+        attrs: {
+          'http-equiv': 'Content-Security-Policy',
+          content: contentSecurityPolicy(supabaseUrl),
+        },
+        injectTo: 'head-prepend',
+      },
+    ],
+  };
+}
+
+export default defineConfig(({ mode }) => ({
   base: BASE,
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     react(),
+    cspPlugin(loadEnv(mode, process.cwd(), 'VITE_').VITE_SUPABASE_URL),
     VitePWA({
-      // Phase 6 adds the custom register file, the reload banner and the icons.
+      // Registered by hand in src/pwa.ts, which also drives the "New version: Reload" banner.
       injectRegister: false,
       registerType: 'prompt',
       manifest: {
@@ -25,7 +68,16 @@ export default defineConfig({
         display: 'standalone',
         theme_color: '#1f6f50',
         background_color: '#ffffff',
-        icons: [],
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: 'icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
       },
       workbox: {
         skipWaiting: true,
@@ -51,4 +103,4 @@ export default defineConfig({
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
     },
   },
-});
+}));

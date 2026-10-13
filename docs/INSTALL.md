@@ -25,7 +25,8 @@ Jonathan set up.
 ## 3. Turn on the daily reminder
 
 1. In the app, tap **Settings**.
-2. Tap **Daily reminder** to turn it on.
+2. Tap **Daily reminder** to turn it on. (If you see "Add this app to your Home Screen first"
+   instead, you opened it in Safari, not from the SPHR icon. Open the icon and try again.)
 3. iPhone asks **"SPHR" Would Like to Send You Notifications**. Tap **Allow**.
 4. The reminder time is **3:00 PM**. To change it, tap the time and pick another (it moves
    in 15-minute steps).
