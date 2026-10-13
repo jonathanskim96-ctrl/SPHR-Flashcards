@@ -814,6 +814,34 @@
       "added": "2026-10-13",
       "revision": 1,
       "status": "active"
+    },
+    {
+      "id": "fake2-q05",
+      "type": "numeric",
+      "area": 2,
+      "level": "K",
+      "outline": [
+        "2.1"
+      ],
+      "category": null,
+      "scenarioId": null,
+      "stem": "FAKE: How many days does a pretend widget take to cool?",
+      "answer": {
+        "value": 30,
+        "tolerance": 0,
+        "unit": "days"
+      },
+      "displayAnswer": "30 days",
+      "explanation": "FAKE: widgets cool for one imaginary month.",
+      "citations": [],
+      "source": {
+        "doc": "FAKE Worksheet 2",
+        "number": 5,
+        "originalType": "numeric"
+      },
+      "added": "2026-10-13",
+      "revision": 1,
+      "status": "active"
     }
   ]
 }
