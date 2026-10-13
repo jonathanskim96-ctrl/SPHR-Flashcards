@@ -36,3 +36,10 @@ Branch `ccr-67c10ae0-ubtsvr`.
 - Mutation-style checks done locally: an injected `assert 1 = 2` test file made `run.sh`
   exit 3; a scratch file with `dangerouslySetInnerHTML`, `innerHTML`, `eval`, `alert`,
   `new Function` gave 5 lint errors. Both scratch files removed.
+- Acceptance on GitHub: CI run 38354068917 (commit cc3c09e) green, all 14 steps. Then a
+  deliberately broken **fake** bank (duplicate id) was pushed: CI run 38354373105 failed at
+  "Validate the fake test bank" with `fake2-q05: duplicate id`. Undone with a revert commit
+  (no force-push). The real bank was never modified. A bad *real* bank stops CI at the
+  first validation step the same way, and `deploy.yml` builds only after `verify` (= CI)
+  passes, and `build-bank.mjs` refuses to copy an invalid bank (tested), so a bad bank
+  cannot be deployed.

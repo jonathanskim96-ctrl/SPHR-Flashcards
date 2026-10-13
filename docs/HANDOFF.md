@@ -15,6 +15,10 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
   `scripts/check-migrations.mjs` + `supabase/migrations/migrations.lock.json` (empty, no
   migrations yet); `scripts/build-bank.mjs`; `supabase/tests/run.sh` (local PostgreSQL +
   auth shim); `.github/workflows/ci.yml` and `deploy.yml`.
+- Phase 0 acceptance: CI green on GitHub; a deliberately broken fake bank turned CI red and
+  was reverted with a new commit; removing an id fails `--previous` and editing an applied
+  migration fails check-migrations (both covered by `scripts/*.test.mjs`). Deploy has not
+  run yet (it only runs on `main`).
 - In the repo from planning: `content/questions.json` (400 questions, 26 scenarios,
   bankVersion `2026-10-13.1`, passes the validator), `docs/QUESTION_FORMAT.md` (schema v1),
   `scripts/validate-bank.mjs`, `APP_BUILD_PLAYBOOK.md`, `PLANNING_PROMPT.md`, and the
