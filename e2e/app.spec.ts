@@ -2,7 +2,7 @@
 // address is pretend (http://supabase.test): these tests answer for it, and for the built-in
 // question bank they serve the clearly fake sample bank. Nothing real is contacted.
 import { expect, test, type Page } from '@playwright/test';
-import { asInstalledApp, pretendSupabase, signIn, watchCsp } from './helpers';
+import { asInstalledApp, fakePushPhone, pretendSupabase, signIn, watchCsp } from './helpers';
 
 async function noSideScroll(page: Page) {
   const overflow = await page.evaluate(
@@ -126,6 +126,7 @@ test('Settings: in a browser tab the reminder is replaced by Add to Home Screen 
 test('Settings: save, reminder confirm, and sign out', async ({ page }) => {
   const csp = watchCsp(page);
   await asInstalledApp(page);
+  await fakePushPhone(page);
   await pretendSupabase(page);
   await signIn(page);
   await page.getByRole('button', { name: 'Settings' }).click();

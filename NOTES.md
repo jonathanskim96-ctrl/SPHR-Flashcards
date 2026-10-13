@@ -257,3 +257,50 @@ Mutation checks (each made to the file, the tests run, the file restored):
 | iOS `navigator.standalone` flag ignored | `install.test` |
 | (found by the e2e update test, then fixed) banner decided at load | `e2e/pwa.spec.ts` update flow |
 
+
+## 2026-10-13: Phase 6 approved; Phase 7 (daily reminder)
+
+Owner approved Phase 6 (start of the Phase 7 chat). Phase 7 built on `ccr-67c10ae0-ubtsvr`
+as BUILD_PLAN Phase 7 describes (details in HANDOFF §1).
+
+- Design: the "is it due?" rule is "the first quarter-hour of the local day at or past the
+  reminder time", with the run's clock rounded to the nearest quarter hour. A plain
+  `[time, time + 15 min)` window would skip 2:00–2:45 AM reminders on the spring-forward
+  night (BUILD_PLAN asks for none skipped), and would miss a whole day if pg_cron started a
+  few seconds early on a machine whose clock is behind. A run may send up to 1 hour late if
+  the earlier run failed (HANDOFF §3 item 19 asks the owner to confirm).
+- No new migration: the function's reads and writes all fit what Phase 2 already grants the
+  service role; `supabase/tests/70_reminders.test.sql` proves each statement.
+- The function is one file so the owner can paste it into the dashboard editor. Tests import
+  it with `SEND_REMINDERS_TEST=1` so it does not start a server.
+- `npm:web-push` under Deno uses `node:https`, which ignores `DENO_CERT`; the test trusts its
+  throwaway CA through `https.globalAgent.options.ca` (test only).
+- Playwright's light headless browser reports notification permission as "denied" whatever is
+  granted; `e2e/push.spec.ts` uses the full Chromium build headless (`channel: 'chromium'`).
+- The permission-from-the-tap rule is checked two ways: unit (`requestPermission` is called
+  before `turnOnReminder` returns, so before anything is awaited) and browser (the pretend
+  `Notification.requestPermission` logs `window.event.type`, which is `click` only while the
+  tap is being handled).
+- Existing tests changed: `store.test` (the new `reminderOfferDone` meta key), the Settings
+  e2e test (now uses the pretend iPhone push, since turning on runs the real permission flow).
+
+Mutation checks (each made to the file, the tests run, the file restored; all caught):
+
+| Mutation | Caught by |
+|---|---|
+| no walk-back (repeated fall-back hour counts twice) | Deno: fall back, ordinary day, whole year |
+| plain 15-minute wall-clock window | Deno: spring forward, many zones |
+| run time floored instead of rounded | Deno: slotOf |
+| no catch-up after a failed run | Deno: failed run made up, late evening |
+| secret check always passes | Deno: 401 tests, sameSecret |
+| 410 not treated as gone | Deno: run results, real web-push |
+| day not claimed before sending | Deno: run results, duplicate run |
+| day claimed with no devices | Deno: nothing claimed wrongly |
+| something awaited before the permission request | push.test, reminder.test |
+| `userVisibleOnly` false | push.test, reminder.test |
+| start-up refresh ignores the off switch | push.test, reminder.test |
+| turning off never tells the server | push.test, reminder.test |
+| Settings switch saves without the permission flow | reminder.test (4) |
+| Home card ignores "Not now" | reminder.test (2) |
+| worker shows the push message's own text | push-sw.test |
+| worker opens a new window when the app is open | push-sw.test |

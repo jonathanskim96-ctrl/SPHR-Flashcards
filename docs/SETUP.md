@@ -126,12 +126,18 @@ Changes: stores the keys the server uses to send notifications. They never go in
 4. Do A3's third value (`VITE_VAPID_PUBLIC_KEY`) now.
 
 ### B8. Deploy the reminder function
+Changes: adds the small server program that sends the daily reminder. It reads the reminder
+settings and Michelle's devices, and writes only the reminder log and each device's
+"last sent / failed / gone" columns (never deletes anything).
 1. Left sidebar: **Edge Functions** → **Deploy a new function** → **Via Editor**.
 2. Name it exactly `send-reminders`.
-3. Delete the sample code in the editor. Claude pastes the function code in chat; paste it in.
+3. Delete the sample code in the editor. Claude pastes the function code in chat (it is the
+   file `supabase/functions/send-reminders/index.ts`, one file); paste it in.
 4. Click **Deploy function**. Wait for "Deployed".
 5. Open the function's **Details** / **Settings** and turn **off** **Enforce JWT
    verification** (the function checks the cron secret itself). Click **Save**.
+6. Supabase gives the function its own project address and service key automatically
+   (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`); you don't add those.
 
 ### B9. Schedule the reminder job
 Changes: every 15 minutes the database calls `send-reminders`, which sends her reminder
@@ -223,3 +229,8 @@ The planning session couldn't open these sites directly, so check them once:
    Invocations** with a free quota (expected 500,000 a month). We'll use about 2,900.
 3. The plan must stay **Free**. If anything ever asks you to upgrade to keep working,
    stop and tell Claude.
+4. After B9 has run for 15 minutes: **Edge Functions** → `send-reminders` → **Logs**. You
+   should see a line starting `send-reminders {"checked":`. If you see an error instead
+   (for example about `SUPABASE_SERVICE_ROLE_KEY` or `web-push`), copy it to Claude. The
+   reminder function was tested with the same Web Push library in Deno on the build
+   machine, but not yet inside Supabase itself.

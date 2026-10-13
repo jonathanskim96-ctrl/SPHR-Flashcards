@@ -12,7 +12,13 @@ export type Change =
 
 export type WriteResult = { ok: true } | { ok: false; errors: string[] };
 
-const META_DEFAULTS: Meta = { cursor: 0, lastSyncAt: null, lastExportAt: null, notices: [] };
+const META_DEFAULTS: Meta = {
+  cursor: 0,
+  lastSyncAt: null,
+  lastExportAt: null,
+  notices: [],
+  reminderOfferDone: false,
+};
 const MAX_NOTICES = 20;
 
 export interface PendingCounts {

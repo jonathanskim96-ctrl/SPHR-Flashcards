@@ -83,6 +83,8 @@ export default defineConfig(({ mode }) => ({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
+        // The daily reminder's `push` and `notificationclick` handlers (Phase 7).
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,json,png,svg,webmanifest}'],
       },
     }),

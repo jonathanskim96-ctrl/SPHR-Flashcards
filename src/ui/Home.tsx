@@ -1,7 +1,7 @@
 // Home: XP and the daily-goal ring, five area cards with three tier rows each, the area and
 // tier pickers, Start lesson and Mistakes. Not shown, by the owner's choice: a due-today
 // counter, an exam countdown, a streak.
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Selection } from '../domain/lesson';
 import { stateOf } from '../domain/replay';
 import { AREA_IDS, LEVELS, type AreaId, type Level, type Mode } from '../domain/types';
@@ -90,10 +90,13 @@ export function Home({
   study,
   onStart,
   onSettings,
+  offer,
 }: {
   study: Study;
   onStart: (mode: Mode, selection: Selection) => void;
   onSettings: () => void;
+  /** The one-time daily-reminder card, when it is offered. */
+  offer?: ReactNode;
 }) {
   const [selection, setSelection] = useState<Selection>(loadSelection);
   useEffect(() => saveSelection(selection), [selection]);
@@ -120,6 +123,8 @@ export function Home({
           ⚙
         </button>
       </header>
+
+      {offer}
 
       <section className="xp-row" aria-label="Experience points">
         <div>

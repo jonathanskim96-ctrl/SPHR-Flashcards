@@ -15,6 +15,8 @@ export interface Study {
   attempts: Attempt[];
   settings: Settings;
   lastExportAt: string | null;
+  /** The one-time Home card offering the reminder was answered on this phone. */
+  reminderOfferDone: boolean;
   bankStatus: BankStatus;
   bank: Bank | null;
   today: LocalDate;
@@ -32,6 +34,7 @@ export function useStudy(
     attempts: Attempt[];
     settings: Settings;
     lastExportAt: string | null;
+    reminderOfferDone: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bankStatus, setBankStatus] = useState<BankStatus>(() => session.bank.status());
@@ -52,7 +55,12 @@ export function useStudy(
             return;
           }
           setError(null);
-          setData({ attempts, settings: record.settings, lastExportAt: meta.lastExportAt });
+          setData({
+            attempts,
+            settings: record.settings,
+            lastExportAt: meta.lastExportAt,
+            reminderOfferDone: meta.reminderOfferDone,
+          });
         },
         (e: unknown) => {
           if (live) setError(`Could not read your progress from this phone: ${errorText(e)}`);

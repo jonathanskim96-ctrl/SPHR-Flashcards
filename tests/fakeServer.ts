@@ -11,7 +11,12 @@ import {
   type Backend,
   type PullPage,
 } from '../src/data/backend';
-import { validateAttempt, validateSettings } from '../src/domain/validate';
+import {
+  validateAttempt,
+  validateSettings,
+  validateSubscription,
+  type PushSubscriptionKeys,
+} from '../src/domain/validate';
 import type { Attempt, Settings } from '../src/domain/types';
 
 interface Row {
@@ -39,6 +44,10 @@ export class FakeServer {
   /** The imported question bank in the file's shape (null: never imported). */
   bank: Record<string, unknown> | null = null;
   bankDownloads = 0;
+  /** push_subscriptions, by endpoint (like the table: never deleted, only disabled). */
+  subscriptions = new Map<string, PushSubscriptionKeys & { disabled: boolean }>();
+  /** Every push-subscription call, in order: `save <endpoint>` / `disable <endpoint>`. */
+  pushCalls: string[] = [];
   private nextSeq = 1;
 
   constructor(private readonly now: () => number = Date.now) {}
@@ -119,6 +128,19 @@ export class FakeServer {
           rows(b.scenarios),
           rows(b.questions),
         );
+      },
+      savePushSubscription: async (keys) => {
+        this.check();
+        this.pushCalls.push(`save ${keys.endpoint}`);
+        const r = validateSubscription(keys);
+        if (!r.ok) throw new Error(`Saving the reminder on the server failed: ${r.errors[0]}`);
+        this.subscriptions.set(keys.endpoint, { ...r.value, disabled: false });
+      },
+      disablePushSubscription: async (endpoint) => {
+        this.check();
+        this.pushCalls.push(`disable ${endpoint}`);
+        const sub = this.subscriptions.get(endpoint);
+        if (sub) sub.disabled = true;
       },
     };
   }

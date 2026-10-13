@@ -24,8 +24,11 @@ Jonathan set up.
 
 ## 3. Turn on the daily reminder
 
+The first time the app opens from the icon, Home shows **"Turn on daily reminder (3:00 PM)?"**.
+Tap **Turn on** and skip to step 3. (If you tapped **Not now**, use Settings as below.)
+
 1. In the app, tap **Settings**.
-2. Tap **Daily reminder** to turn it on. (If you see "Add this app to your Home Screen first"
+2. Tap **Remind me every day** to turn it on. (If you see "Add this app to your Home Screen first"
    instead, you opened it in Safari, not from the SPHR icon. Open the icon and try again.)
 3. iPhone asks **"SPHR" Would Like to Send You Notifications**. Tap **Allow**.
 4. The reminder time is **3:00 PM**. To change it, tap the time and pick another (it moves
@@ -35,7 +38,8 @@ You'll get "You should practice some questions" once a day at that time.
 
 **If you tapped "Don't Allow" by mistake:** open the iPhone **Settings** app →
 **Notifications** → scroll to **SPHR** → turn on **Allow Notifications**. Then go back to
-the app → Settings → turn the reminder off and on again.
+the app → Settings → turn the reminder on. (If it already shows on, going back to the app is
+enough.)
 
 **If reminders don't arrive:** check that a **Focus** mode (Do Not Disturb, Sleep, Work) isn't
 silencing it (iPhone Settings → **Focus**), and that the app was opened from the icon at

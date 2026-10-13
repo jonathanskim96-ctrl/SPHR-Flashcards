@@ -233,6 +233,42 @@ describe('Supabase backend: the question bank', () => {
   });
 });
 
+describe('Supabase backend: the daily reminder', () => {
+  const keys = {
+    endpoint: 'https://web.push.apple.com/abc',
+    p256dh: 'BIPUL12DLfytvTajnryr2PRdAgXS3HGK',
+    auth: 'FPssNDTKnInHVndSTdbKFw',
+  };
+
+  it('saves and disables the subscription through their two RPCs', async () => {
+    const { backend, calls } = fakeClient((c) => ({
+      json: c.path.endsWith('save_push_subscription')
+        ? 'b5b1f0f2-0000-4000-8000-000000000001'
+        : true,
+    }));
+    await backend.savePushSubscription(keys);
+    await backend.disablePushSubscription(keys.endpoint);
+    expect(calls.map((c) => [c.method, c.path, c.body])).toEqual([
+      [
+        'POST',
+        '/rest/v1/rpc/save_push_subscription',
+        { p_endpoint: keys.endpoint, p_p256dh: keys.p256dh, p_auth: keys.auth },
+      ],
+      ['POST', '/rest/v1/rpc/disable_push_subscription', { p_endpoint: keys.endpoint }],
+    ]);
+  });
+
+  it('turns errors into readable messages', async () => {
+    const { backend } = fakeClient(() => ({ status: 400, json: { message: 'not signed in' } }));
+    await expect(backend.savePushSubscription(keys)).rejects.toThrow(
+      'Saving the reminder on the server failed: not signed in',
+    );
+    await expect(backend.disablePushSubscription(keys.endpoint)).rejects.toThrow(
+      'Turning off the reminder on the server failed: not signed in',
+    );
+  });
+});
+
 describe('createAppClient', () => {
   it('needs the URL and the publishable key', () => {
     expect(() => createAppClient('', 'x')).toThrow('not configured');

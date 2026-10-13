@@ -106,6 +106,7 @@ describe('notices and meta', () => {
       lastSyncAt: null,
       lastExportAt: null,
       notices: [],
+      reminderOfferDone: false,
     });
   });
 

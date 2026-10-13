@@ -13,6 +13,8 @@ export interface Session {
   userId: string;
   store: LocalStore;
   engine: SyncEngine;
+  /** The server (the screens use it only for the reminder's push-subscription calls). */
+  backend: Backend;
   /** The question bank (loads in the background; screens subscribe to it). */
   bank: BankManager;
   /** The result of asking for persistent storage. */
@@ -47,7 +49,15 @@ export async function openSession(o: SessionOptions): Promise<Session> {
   engine.start();
   const bank = new BankManager(store, o.backend, o.loadBundled ?? (() => fetchBundledBank()), env);
   void bank.start();
-  return { userId: o.userId, store, engine, bank, persistence, factory: o.factory };
+  return {
+    userId: o.userId,
+    store,
+    engine,
+    backend: o.backend,
+    bank,
+    persistence,
+    factory: o.factory,
+  };
 }
 
 /**

@@ -6,10 +6,12 @@ import { errorText } from './data/store';
 import { buildLesson, type Selection } from './domain/lesson';
 import type { Mode, Question } from './domain/types';
 import type { AuthApi } from './ui/auth';
-import { productionDeps, type AppDeps, type AppEnv } from './ui/deps';
+import type { PushDeps } from './data/push';
+import { NO_PUSH, productionDeps, type AppDeps, type AppEnv } from './ui/deps';
 import { CaughtUp, LessonEnd } from './ui/EndScreens';
 import { Home, mistakesCount } from './ui/Home';
 import { Lesson, type CardResult } from './ui/Lesson';
+import { ReminderOffer, showReminderOffer, useReminderRefresh } from './ui/reminder';
 import { Settings } from './ui/Settings';
 import { SignIn } from './ui/SignIn';
 import { UpdateBanner } from './ui/UpdateBanner';
@@ -106,6 +108,7 @@ function Gate({ deps }: { deps: AppDeps }) {
       session={phase.session}
       auth={deps.auth}
       env={deps.env}
+      push={deps.push ?? NO_PUSH}
       onSignedOut={() => setPhase({ name: 'signed-out', error: null })}
     />
   );
@@ -122,14 +125,22 @@ function Main({
   session,
   auth,
   env,
+  push,
   onSignedOut,
 }: {
   session: Session;
   auth: AuthApi;
   env: AppEnv;
+  push: PushDeps;
   onSignedOut: () => void;
 }) {
   const { study, error } = useStudy(session, env);
+  const reminderRefresh = useReminderRefresh(
+    session,
+    push,
+    study?.settings.reminderEnabled ?? false,
+    env.installed && !!study,
+  );
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const runs = useRef(0);
 
@@ -187,6 +198,8 @@ function Main({
           study={study}
           auth={auth}
           env={env}
+          push={push}
+          reminderRefresh={reminderRefresh}
           onBack={() => setScreen({ name: 'home' })}
           onSignedOut={onSignedOut}
         />
@@ -239,7 +252,16 @@ function Main({
     }
     default:
       body = (
-        <Home study={study} onStart={start} onSettings={() => setScreen({ name: 'settings' })} />
+        <Home
+          study={study}
+          onStart={start}
+          onSettings={() => setScreen({ name: 'settings' })}
+          offer={
+            showReminderOffer(study, push, env.installed) && (
+              <ReminderOffer session={session} push={push} study={study} />
+            )
+          }
+        />
       );
   }
   return (

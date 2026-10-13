@@ -20,6 +20,8 @@ const json = (body: unknown, status = 200) => ({
 export async function pretendSupabase(page: Page, opts: { password?: string } = {}) {
   const password = opts.password ?? 'correct horse';
   const calls: string[] = [];
+  /** The push-subscription RPCs: `save <endpoint>` / `disable <endpoint>`. */
+  const pushCalls: string[] = [];
   const net = { down: false };
   await page.route('http://supabase.test/**', async (route) => {
     const req = route.request();
@@ -57,6 +59,11 @@ export async function pretendSupabase(page: Page, opts: { password?: string } = 
     }
     if (url.pathname === '/auth/v1/logout')
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+    if (url.pathname.endsWith('_push_subscription')) {
+      const body = JSON.parse(req.postData() ?? '{}') as { p_endpoint?: string };
+      pushCalls.push(`${url.pathname.includes('save') ? 'save' : 'disable'} ${body.p_endpoint}`);
+      return route.fulfill(json(url.pathname.includes('save') ? 'e2e-subscription-id' : true));
+    }
     if (url.pathname === '/rest/v1/rpc/apply_changes')
       return route.fulfill(
         json({
@@ -73,7 +80,7 @@ export async function pretendSupabase(page: Page, opts: { password?: string } = 
     // bank_meta, settings, attempts: nothing on the server yet.
     return route.fulfill(json([]));
   });
-  return { calls, net };
+  return { calls, net, pushCalls };
 }
 
 /** Collects Content-Security-Policy violations (the built page carries a strict policy). */
@@ -100,4 +107,72 @@ export async function signIn(page: Page, password = 'correct horse') {
   await page.getByLabel('Email').fill('michelle@example.com');
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+/**
+ * A pretend iPhone notification system for the reminder tests: `Notification` (permission
+ * and the Allow prompt) and the service worker's `PushManager`. Kept in localStorage so a
+ * reload sees the same phone. Every call is logged, with the event being handled at that
+ * moment: a permission request made straight from a tap logs `requestPermission@click`.
+ */
+export async function fakePushPhone(page: Page, opts: { answer?: 'granted' | 'denied' } = {}) {
+  await page.addInitScript((answer) => {
+    const store = {
+      get: (k: string) => localStorage.getItem(`fake-push:${k}`),
+      set: (k: string, v: string) => localStorage.setItem(`fake-push:${k}`, v),
+    };
+    const log = (entry: string) =>
+      store.set('log', JSON.stringify([...JSON.parse(store.get('log') ?? '[]'), entry]));
+    const subscription = (endpoint: string) => ({
+      endpoint,
+      options: { applicationServerKey: null },
+      toJSON: () => ({
+        endpoint,
+        keys: {
+          p256dh:
+            'BIPUL12DLfytvTajnryr2PRdAgXS3HGKiLqndGcJGabyhHheJYlNGCeXl1dn18gSJ1WAkAPIxr4gK0_dQds4yiI',
+          auth: 'FPssNDTKnInHVndSTdbKFw',
+        },
+      }),
+      unsubscribe: async () => true,
+    });
+    const pushManager = {
+      getSubscription: async () => {
+        log('getSubscription');
+        const e = store.get('endpoint');
+        return e ? subscription(e) : null;
+      },
+      subscribe: async (o: { userVisibleOnly: boolean; applicationServerKey: Uint8Array }) => {
+        log(`subscribe userVisibleOnly=${o.userVisibleOnly} key=${o.applicationServerKey.length}`);
+        const e = `https://web.push.apple.com/e2e-${Date.now()}`;
+        store.set('endpoint', e);
+        return subscription(e);
+      },
+    };
+    class FakeNotification {
+      static get permission() {
+        return store.get('permission') ?? 'default';
+      }
+      static async requestPermission() {
+        log(`requestPermission@${window.event?.type ?? 'none'}`);
+        store.set('permission', answer);
+        return answer;
+      }
+    }
+    Object.defineProperty(window, 'Notification', { value: FakeNotification, configurable: true });
+    const container = {
+      controller: null,
+      ready: Promise.resolve({ pushManager }),
+      register: async () => ({ update: async () => undefined }),
+      addEventListener: () => undefined,
+    };
+    Object.defineProperty(Navigator.prototype, 'serviceWorker', {
+      get: () => container,
+      configurable: true,
+    });
+  }, opts.answer ?? 'granted');
+  return {
+    log: (): Promise<string[]> =>
+      page.evaluate(() => JSON.parse(localStorage.getItem('fake-push:log') ?? '[]')),
+  };
 }

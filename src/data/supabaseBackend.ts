@@ -1,5 +1,6 @@
 // The real server: Supabase through supabase-js (PostgREST). Reads go through row-level
-// security; the only write is the `apply_changes` RPC (CLAUDE.md §2 "one write path").
+// security; the only write is the `apply_changes` RPC (CLAUDE.md §2 "one write path"), plus
+// the two small push-subscription RPCs for the daily reminder.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   assembleServerBank,
@@ -100,6 +101,20 @@ export function createSupabaseBackend(client: SupabaseClient): Backend {
       if (bankVersionOf(await readMeta()) !== bankVersionOf(meta))
         throw new Error('The questions changed on the server while loading; trying again later.');
       return assembleServerBank(meta, scenarios, questions);
+    },
+
+    async savePushSubscription(keys) {
+      const { error } = await client.rpc('save_push_subscription', {
+        p_endpoint: keys.endpoint,
+        p_p256dh: keys.p256dh,
+        p_auth: keys.auth,
+      });
+      if (error) fail('Saving the reminder on the server failed', error);
+    },
+
+    async disablePushSubscription(endpoint) {
+      const { error } = await client.rpc('disable_push_subscription', { p_endpoint: endpoint });
+      if (error) fail('Turning off the reminder on the server failed', error);
     },
   };
 }

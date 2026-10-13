@@ -10,19 +10,16 @@ import { isLocalDate } from '../domain/dates';
 import { buildExport, previewImport, type ImportPreview } from '../domain/exportImport';
 import { EXAM_DATE_MAX, EXAM_DATE_MIN, SETTINGS_LIMITS } from '../domain/validate';
 import type { Settings as SettingsData } from '../domain/types';
+import type { PushDeps, RefreshResult } from '../data/push';
 import type { AuthApi } from './auth';
 import type { AppEnv } from './deps';
 import { ConfirmDialog } from './Dialog';
+import { refreshProblem, ReminderMessage, timeLabel, useReminderSwitch } from './reminder';
 import { SyncStatusLine } from './SyncStatusLine';
 import { OfflineLine } from './UpdateBanner';
 import type { Study } from './useStudy';
 
-/** `15:00` → `3:00 PM`. */
-export function timeLabel(hhmm: string): string {
-  const [h = '0', m = '00'] = hhmm.split(':');
-  const hour = Number(h);
-  return `${hour % 12 === 0 ? 12 : hour % 12}:${m} ${hour < 12 ? 'AM' : 'PM'}`;
-}
+export { timeLabel };
 
 export const REMINDER_TIMES: string[] = Array.from({ length: 96 }, (_, i) => {
   const h = String(Math.floor(i / 4)).padStart(2, '0');
@@ -62,6 +59,8 @@ export function Settings({
   study,
   auth,
   env,
+  push,
+  reminderRefresh,
   onBack,
   onSignedOut,
 }: {
@@ -69,6 +68,9 @@ export function Settings({
   study: Study;
   auth: AuthApi;
   env: AppEnv;
+  push: PushDeps;
+  /** What the start-up check of this phone's reminder found. */
+  reminderRefresh: RefreshResult | null;
   onBack: () => void;
   onSignedOut: () => void;
 }) {
@@ -100,6 +102,9 @@ export function Settings({
   const [blocked, setBlocked] = useState<string | null>(null);
   const [imp, setImp] = useState<{ preview: ImportPreview; restoreSettings: boolean } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const reminder = useReminderSwitch(session, push, s);
+  const reminderProblem =
+    reminder.problem ?? (s.reminderEnabled ? refreshProblem(reminderRefresh) : null);
 
   async function save(next: SettingsData) {
     const r = await session.store.guardedWrite({ kind: 'settings', settings: next });
@@ -288,10 +293,10 @@ export function Settings({
                 type="checkbox"
                 role="switch"
                 checked={s.reminderEnabled}
+                disabled={reminder.busy}
                 onChange={(e) =>
-                  e.target.checked
-                    ? void setReminder({ reminderEnabled: true })
-                    : setConfirm('reminder-off')
+                  // Turning on asks for permission, which iOS allows only straight from the tap.
+                  e.target.checked ? reminder.turnOn() : setConfirm('reminder-off')
                 }
               />
               <span>Remind me every day</span>
@@ -310,6 +315,8 @@ export function Settings({
               </select>
             </label>
             <p className="muted">Time zone: {s.timeZone}</p>
+            {reminder.busy && <p role="status">Turning on the reminder…</p>}
+            {reminderProblem && <ReminderMessage problem={reminderProblem} />}
           </>
         )}
       </section>
@@ -387,7 +394,7 @@ export function Settings({
           onCancel={() => setConfirm(null)}
           onConfirm={() => {
             setConfirm(null);
-            void setReminder({ reminderEnabled: false });
+            void reminder.turnOff();
           }}
         >
           <p>You will no longer get a reminder to practice.</p>

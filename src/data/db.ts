@@ -26,6 +26,8 @@ export interface Meta {
   lastExportAt: string | null;
   /** Messages for the user that survive a reload until dismissed (rejections, conflicts). */
   notices: string[];
+  /** The one-time Home card offering the daily reminder was answered or dismissed. */
+  reminderOfferDone: boolean;
 }
 
 interface Schema extends DBSchema {

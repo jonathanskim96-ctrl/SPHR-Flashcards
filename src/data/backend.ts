@@ -2,7 +2,7 @@
 // domain types. The real implementation (supabaseBackend.ts) and the test fake both
 // convert through these functions, and the contract test (supabase/tests/60_contract)
 // checks them against the real database.
-import { validateAttempt, validateSettings } from '../domain/validate';
+import { validateAttempt, validateSettings, type PushSubscriptionKeys } from '../domain/validate';
 import type { Attempt, Settings } from '../domain/types';
 
 export interface VersionedSettings {
@@ -52,6 +52,13 @@ export interface Backend {
    * while it was being read.
    */
   getBank(): Promise<unknown>;
+  /**
+   * Saves (or refreshes) this device's push subscription for the daily reminder
+   * (`save_push_subscription`, an upsert that also re-enables it).
+   */
+  savePushSubscription(keys: PushSubscriptionKeys): Promise<void>;
+  /** Stops reminders to this device (`disable_push_subscription`; never deletes). */
+  disablePushSubscription(endpoint: string): Promise<void>;
 }
 
 export interface PullPage {

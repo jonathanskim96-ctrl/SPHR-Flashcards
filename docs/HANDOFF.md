@@ -4,14 +4,58 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 6 (installable app, offline, updates) is built, waiting for the owner's OK**
-  (2026-10-13) on branch `ccr-67c10ae0-ubtsvr`. Phases 0–5 approved; nothing merged to `main`.
-  **Next: Phase 7** (daily reminder), in a new chat (see §6), only after the owner approves
-  Phase 6.
+- **Phase 7 (daily reminder) is built, waiting for the owner's OK** (2026-10-13) on branch
+  `ccr-67c10ae0-ubtsvr`. Phases 0–6 approved (Phase 6 approved 2026-10-13); nothing merged to
+  `main`. **Next: Phase 8** (backups, keep-alive, question import), in a new chat (see §6),
+  only after the owner approves Phase 7.
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
   Part B3 runs them later). Until then the real app shows "The app is not configured" (the
   Supabase address and key are repo variables set in SETUP); everything was tested against
-  a pretend server.
+  a pretend server. **The reminder function is not deployed** (SETUP B7–B9 do that), and
+  the VAPID key pair was given to the owner in chat only (never in a file).
+- Phase 7 contents: **server** `supabase/functions/send-reminders/index.ts` (one file, pasted
+  into the dashboard in SETUP B8): checks `x-cron-secret` (401 otherwise; 500 if
+  `CRON_SECRET` is unset), reads `settings` rows with the reminder on and each account's
+  active `push_subscriptions` as the service role (PostgREST via supabase-js), decides
+  "due" in the account's time zone (below), inserts the `reminder_log` row **before**
+  sending (its key = one per local day; a duplicate claim (23505) means "already sent"),
+  sends with `npm:web-push@3.6.7` (VAPID, `TTL` 6 h, topic `daily-reminder`), then sets
+  `last_success_at` / `disabled_at` (404/410) / `failure_count + 1` (anything else). Returns
+  a JSON summary and logs it (never an endpoint, only its host). Deno config
+  `supabase/functions/deno.json` + `deno.lock` (pinned, checked). **When a reminder is due:**
+  the run's time is rounded to the nearest quarter hour; the reminder time "happens" at the
+  first quarter-hour of the local day whose clock is at or past it (so 2:30 AM on the
+  spring-forward night goes at 3:00 AM; the repeated 1–2 AM hour in the fall counts once);
+  a run may send up to 1 hour after that if the earlier run failed (see §3 item 19).
+  **App:** `src/data/push.ts` (permission request made synchronously from the tap, then
+  `pushManager.subscribe({userVisibleOnly: true})` with the VAPID key, then
+  `save_push_subscription`; turning off saves `reminderEnabled: false` then calls
+  `disable_push_subscription`; at start, on return to the front, and when the setting turns
+  on anywhere: re-save the subscription, subscribing again if it expired; never asks for
+  permission without a tap; a subscription made with an old key is replaced),
+  `Backend.savePushSubscription` / `disablePushSubscription` (the two small RPCs),
+  `src/ui/reminder.tsx` (the switch logic, messages, the one-time Home card "Turn on daily
+  reminder (3:00 PM)?" with Turn on / Not now, remembered on the phone as
+  `meta.reminderOfferDone`), Settings switch now runs the permission flow and shows: the
+  iPhone Settings steps after "Don't Allow", a warning when the reminder is on but this phone
+  blocks notifications, and errors. **Service worker** `public/push-sw.js` (imported by
+  `sw.js` via workbox `importScripts`): every push shows title "SPHR Flashcards", body "You
+  should practice some questions", the app icon, tag `daily-reminder` (the push message's own
+  content is never shown); tapping focuses the open app or opens `/SPHR-Flashcards/`.
+  Tests: Deno `index.test.ts` (19: DST in Los Angeles both ways for all 96 times, 19 zones incl.
+  +5:30/+5:45/+12:45, 30-minute and midnight changes, a whole year at 3 PM; 401/500/405;
+  410/404 → disabled; duplicate and simultaneous runs send once; the PostgREST requests made;
+  a **real encrypted, VAPID-signed push** from `web-push` under Deno to a local HTTPS server,
+  decrypted by an independent RFC 8291 implementation and signature-checked),
+  `supabase/tests/70_reminders.test.sql` (each of the function's statements works for the
+  service role, not for the app or anon; the day key; safety log), vitest (`push.test`, 20;
+  `reminder.test`, 21), `scripts/push-sw.test.mjs`, Playwright `e2e/reminder.spec.ts`
+  (pretend iPhone push: permission asked **during the tap's click event**, subscribe, save,
+  re-save on reload, turn off → disable, "Don't Allow") and `e2e/push.spec.ts` (a push
+  delivered to the real service worker through DevTools shows the fixed notification; runs
+  in the full headless Chromium because the light one has no notifications). 16 mutation
+  checks in NOTES.md. New dev dependency: `deno` 2.9.6 (official npm package; runs the
+  function tests from `npm test`; `npm audit`: 0 vulnerabilities).
 - Phase 6 contents: icons `public/icons/` (white "SPHR" on green: 192, 512, maskable 512,
   180 apple-touch; drawn by `scripts/make-icons.py`, PNGs committed); manifest with the three
   icons and an `apple-touch-icon` link in `index.html`; `src/pwa.ts` (registers
@@ -168,6 +212,7 @@ Decided in the planning session (2026-10-13):
 | Safety-log writer | **Option A approved**: one SECURITY DEFINER trigger function (`log_change`) writes the safety log; the app has no access to the log (decided 2026-10-13, Phase 2) |
 | Chats and models | **One new chat per phase.** Opus for Phases 3, 7, 9; Sonnet is fine for 4, 5, 6, 8 (see §6). Every end-of-phase report tells the owner to open a new chat (decided 2026-10-13) |
 | Phase 5 screen defaults | **All five kept as built** (2026-10-13): remembered area/tier choice with the last one unswitchable; ✕ quits with no question; one Save button for pace fields, reminder saves at once and asks before turning off; one-line hints on Ordering and Matching; a wrong choice stays highlighted green (the owner chose "keep" over the recommended dimming; revisit only if asked) |
+| Phase 6 | **Approved** 2026-10-13 (start of the Phase 7 chat) |
 | Phase 6 choices | **App icon:** white "SPHR" letters on the app's green. **Safari (not installed):** the "Add to Home Screen" steps card appears at the top of Settings only, in place of the reminder switch; Home is unchanged (decided 2026-10-13) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
@@ -283,7 +328,7 @@ changing):
    with no question asked (answers are already saved). (d) Settings: the four pace/date fields
    have one **Save** button; the reminder switch and time save at once; turning the reminder
    **off** asks first. (e) **The reminder switch only saves the preference for now: no
-   notification can be sent until Phase 7.** The "one-time home-screen card" and the
+   notification can be sent until Phase 7.** (Done in Phase 7.) The "one-time home-screen card" and the
    Safari "Add to Home Screen" card belong to Phase 6/7 (they need install detection).
    (f) Matching: tapping an option with no prompt open fills the first empty prompt, and after
    each pairing the next empty prompt opens. (g) Export file name `sphr-progress-YYYY-MM-DD.json`;
@@ -301,13 +346,36 @@ changing):
    show the install card in Settings and hide the reminder switch. (b) Nothing reloads the app
    by itself; the banner stays until she taps it (she may be mid-card). (c) The "one-time
    home-screen card offering the 3:00 PM reminder" decided in Phase 1 is **Phase 7** work
-   (it needs the permission flow). (d) The CSP's `frame-ancestors 'none'` cannot be set from
+   (it needs the permission flow). (Done in Phase 7.) (d) The CSP's `frame-ancestors 'none'` cannot be set from
    a `<meta>` tag (browsers ignore it), and GitHub Pages can't send headers, so framing is
    handled by `frameBust.ts` only. (e) The CSP has no `wss:` entry: Supabase realtime is not
    used. If Phase 7+ ever needs another host, `contentSecurityPolicy()` is the one place.
    (f) **Not verified on a real iPhone:** home-screen install, standalone detection,
    icon appearance, offline in the installed app, and the update banner. INSTALL.md §5's
    first-day checklist covers them; the browser tests use Chromium on an iPhone-sized screen.
+
+17c. Phase 7 notes (no money/safety impact; the owner can change any):
+   (a) Turning the reminder on needs the internet once (the phone's address must reach the
+   server); offline, she sees "Could not turn on the reminder: …" and the switch stays off.
+   Turning it **off** works offline at once; the server stops as soon as the setting backs up.
+   (b) If the reminder is on but this phone blocks notifications, Settings says so with the
+   iPhone Settings steps; after allowing them, going back to the app is enough (the app
+   re-checks when it comes to the front). (c) A reminder that reaches a phone that is off is
+   dropped after 6 hours. (d) The Home card appears only in the installed app, only while the
+   reminder is off, and is remembered per phone; it reappears after sign-out (the phone's
+   data is wiped then). (e) If every device fails at reminder time with a temporary error, that
+   day is still counted as sent (the log row is written first so a day can never get two);
+   the failure is counted on the device and shown in the function's logs.
+   (f) The function runs as the service role, which Phase 2 left able to delete rows in
+   `push_subscriptions` (only the app roles are blocked); the function never deletes, and the
+   mass-delete cap and safety log still apply. (g) **Not verified:** that `npm:web-push` runs
+   inside Supabase's own Edge runtime (verified in Deno 2.9 locally, against a local HTTPS
+   push server), that `SUPABASE_SERVICE_ROLE_KEY` is provided to functions on a new project,
+   and real delivery to an iPhone. SETUP Part G step 4 and INSTALL §5 check them.
+19. **For the owner to confirm (Phase 7):** if the 3:00 PM run fails (a Supabase hiccup) or
+   she picks a time that has just passed, the next run sends the reminder up to **1 hour
+   late** (once). The alternative is to skip that day. Built as "up to 1 hour late"; it is a
+   one-line change (`CATCH_UP_MS` in the function).
 
 **Unverified facts (confirm during SETUP)**
 17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
@@ -345,10 +413,15 @@ npm run typecheck && npm run lint && npm test
 npm run build
 ./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, App↔DB contract (answers, settings, bank)
 npm run e2e                                # Playwright, iPhone 13 Pro Max profile; builds dist-e2e itself (pretend Supabase address)
+npm run test:functions                     # (part of npm test) the reminder Edge Function in Deno; needs openssl
 ```
 `npm test` runs vitest (domain, data layer and bank loader with fake IndexedDB and a fake server, UI) with
 100% coverage enforced on `src/domain` and `src/data`, and the Node guardrail tests (`scripts/*.test.mjs`: validator
-self-test on `tests/fixtures/bad-banks/`, `--previous`, check-migrations, build-bank).
+self-test on `tests/fixtures/bad-banks/`, `--previous`, check-migrations, build-bank, the service worker's
+push handler), then the reminder function's Deno tests (`deno` comes from `npm ci`; the first run downloads
+`web-push` and `supabase-js` from npm, pinned by `supabase/functions/deno.lock`).
+`e2e/push.spec.ts` uses Playwright's full headless Chromium (`channel: 'chromium'`), which the cloud image
+and CI's `playwright install chromium` both have.
 `run.sh` needs a local PostgreSQL (`initdb`); as root it runs the server as the `postgres`
 OS user. It applies the migrations as `migrator`, a non-superuser standing in for Supabase's
 `postgres` role, with Supabase-like default grants, so missing revokes are caught. Migrations are added with `node scripts/check-migrations.mjs --record` once final.
