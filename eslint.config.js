@@ -32,6 +32,7 @@ export default tseslint.config(
     ignores: [
       'coverage',
       'dist',
+      'dist-e2e',
       'dev-dist',
       'node_modules',
       'public',

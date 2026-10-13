@@ -5,8 +5,12 @@ import { VitePWA } from 'vite-plugin-pwa';
 // The app is served from https://jonathanskim96-ctrl.github.io/SPHR-Flashcards/
 const BASE = '/SPHR-Flashcards/';
 
+// Shown in the Settings footer so she can tell which version is running.
+const BUILD_ID = `${new Date().toISOString().slice(0, 10)}-${(process.env.GITHUB_SHA ?? 'dev').slice(0, 7)}`;
+
 export default defineConfig({
   base: BASE,
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     react(),
     VitePWA({
@@ -34,6 +38,9 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.ts'],
     environment: 'node',
+    // The 1,000-case property tests are CPU-heavy: alone ~1.5 s, but over 5 s when they share
+    // the machine with the screen tests. Only the time limit is raised; no check is loosened.
+    testTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: ['src/domain/**/*.ts', 'src/data/**/*.ts'],

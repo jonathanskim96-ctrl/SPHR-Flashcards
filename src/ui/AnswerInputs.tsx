@@ -1,0 +1,372 @@
+// The answer area for each question type. Every input reports a `Response` (ids and typed
+// text, never display positions) or null while the answer is incomplete; Check is enabled
+// only when the response is not null. All text is rendered as React text nodes.
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useEffect, useState } from 'react';
+import type {
+  Labeled,
+  MatchingQuestion,
+  McQuestion,
+  MultiQuestion,
+  NumericQuestion,
+  OrderingQuestion,
+  Question,
+  Response,
+  TextQuestion,
+} from '../domain/types';
+import { moveItem } from './ordering';
+
+export interface InputProps<Q extends Question> {
+  q: Q;
+  /** Display order (ids) chosen when the card was shown: choices, options or items. */
+  order: readonly string[];
+  disabled: boolean;
+  onChange: (r: Response | null) => void;
+}
+
+function byOrder(items: readonly Labeled[], order: readonly string[]): Labeled[] {
+  const map = new Map(items.map((i) => [i.id, i]));
+  return order.flatMap((id) => {
+    const i = map.get(id);
+    return i ? [i] : [];
+  });
+}
+
+export function AnswerInput(props: InputProps<Question>) {
+  const { q } = props;
+  switch (q.type) {
+    case 'mc':
+      return <McInput {...props} q={q} />;
+    case 'multi':
+      return <MultiInput {...props} q={q} />;
+    case 'numeric':
+      return <NumericInput {...props} q={q} />;
+    case 'text':
+      return <TextInput {...props} q={q} />;
+    case 'ordering':
+      return <OrderingInput {...props} q={q} />;
+    case 'matching':
+      return <MatchingInput {...props} q={q} />;
+  }
+}
+
+function McInput({ q, order, disabled, onChange }: InputProps<McQuestion>) {
+  const [picked, setPicked] = useState<string | null>(null);
+  return (
+    <div className="options" role="group" aria-label="Choices">
+      {byOrder(q.choices, order).map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          className="option"
+          aria-pressed={picked === c.id}
+          disabled={disabled}
+          onClick={() => {
+            setPicked(c.id);
+            onChange({ type: 'mc', choice: c.id });
+          }}
+        >
+          {c.text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MultiInput({ q, order, disabled, onChange }: InputProps<MultiQuestion>) {
+  const [picked, setPicked] = useState<string[]>([]);
+  function toggle(id: string) {
+    const next = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id];
+    setPicked(next);
+    onChange(next.length === q.selectCount ? { type: 'multi', choices: next } : null);
+  }
+  return (
+    <div>
+      <p className="muted" aria-live="polite">
+        Choose {q.selectCount} ({picked.length} chosen)
+      </p>
+      <div className="options" role="group" aria-label="Choices">
+        {byOrder(q.choices, order).map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className="option"
+            aria-pressed={picked.includes(c.id)}
+            disabled={disabled}
+            onClick={() => toggle(c.id)}
+          >
+            {picked.includes(c.id) ? '✓ ' : ''}
+            {c.text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NumericInput({ q, disabled, onChange }: InputProps<NumericQuestion>) {
+  const [value, setValue] = useState('');
+  return (
+    <label className="typed">
+      Your answer
+      <span className="typed-row">
+        <input
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => {
+            setValue(e.target.value);
+            onChange(e.target.value.trim() ? { type: 'numeric', input: e.target.value } : null);
+          }}
+        />
+        {q.answer.unit && <span className="unit">{q.answer.unit}</span>}
+      </span>
+    </label>
+  );
+}
+
+function TextInput({ disabled, onChange }: InputProps<TextQuestion>) {
+  const [value, setValue] = useState('');
+  return (
+    <label className="typed">
+      Your answer
+      <input
+        type="text"
+        autoComplete="off"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          setValue(e.target.value);
+          onChange(e.target.value.trim() ? { type: 'text', input: e.target.value } : null);
+        }}
+      />
+    </label>
+  );
+}
+
+function SortableRow({
+  item,
+  index,
+  total,
+  selected,
+  anySelected,
+  disabled,
+  onSelect,
+  onMove,
+  onDrop,
+}: {
+  item: Labeled;
+  index: number;
+  total: number;
+  selected: boolean;
+  anySelected: boolean;
+  disabled: boolean;
+  onSelect: () => void;
+  onMove: (to: number) => void;
+  onDrop: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled,
+  });
+  const label = `Item ${index + 1} of ${total}: ${item.text}`;
+  return (
+    <li
+      ref={setNodeRef}
+      className={`order-row${selected ? ' selected' : ''}${isDragging ? ' dragging' : ''}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <button
+        type="button"
+        className="handle"
+        aria-label={`Drag: ${label}`}
+        disabled={disabled}
+        {...attributes}
+        {...listeners}
+      >
+        ⠿
+      </button>
+      <button
+        type="button"
+        className="order-text"
+        aria-pressed={selected}
+        aria-label={`${label}, tap to select`}
+        disabled={disabled}
+        onClick={onSelect}
+      >
+        {item.text}
+      </button>
+      {anySelected && !selected ? (
+        <button type="button" className="btn small" disabled={disabled} onClick={onDrop}>
+          Move here
+        </button>
+      ) : (
+        <span className="arrows">
+          <button
+            type="button"
+            className="btn small"
+            aria-label={`${label}, move up`}
+            disabled={disabled || index === 0}
+            onClick={() => onMove(index - 1)}
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            className="btn small"
+            aria-label={`${label}, move down`}
+            disabled={disabled || index === total - 1}
+            onClick={() => onMove(index + 1)}
+          >
+            ▼
+          </button>
+        </span>
+      )}
+    </li>
+  );
+}
+
+function OrderingInput({ q, order, disabled, onChange }: InputProps<OrderingQuestion>) {
+  const [ids, setIds] = useState<string[]>([...order]);
+  const [selected, setSelected] = useState<string | null>(null);
+  // An ordering answer is always complete: report the starting order straight away.
+  useEffect(() => onChange({ type: 'ordering', order: ids }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const items = byOrder(q.items, ids);
+
+  function update(next: string[]) {
+    setIds(next);
+    setSelected(null);
+    onChange({ type: 'ordering', order: next });
+  }
+  function onDragEnd(e: DragEndEvent) {
+    if (!e.over || e.active.id === e.over.id) return;
+    update(moveItem(ids, ids.indexOf(String(e.active.id)), ids.indexOf(String(e.over.id))));
+  }
+  return (
+    <div>
+      <p className="muted">
+        Put the steps in order. Drag the ⠿ handle, use ▲ ▼, or tap a row and then “Move here”.
+      </p>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          <ol className="order-list">
+            {items.map((item, i) => (
+              <SortableRow
+                key={item.id}
+                item={item}
+                index={i}
+                total={items.length}
+                selected={selected === item.id}
+                anySelected={selected !== null}
+                disabled={disabled}
+                onSelect={() => setSelected(selected === item.id ? null : item.id)}
+                onMove={(to) => update(moveItem(ids, i, to))}
+                onDrop={() => update(moveItem(ids, ids.indexOf(selected as string), i))}
+              />
+            ))}
+          </ol>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
+function MatchingInput({ q, order, disabled, onChange }: InputProps<MatchingQuestion>) {
+  const [pairs, setPairs] = useState<Record<string, string>>({});
+  const [active, setActive] = useState<string | null>(null);
+  const used = new Set(Object.values(pairs));
+  const pool = byOrder(q.options, order).filter((o) => !used.has(o.id));
+  const optionText = (id: string) => q.options.find((o) => o.id === id)?.text ?? id;
+
+  function commit(next: Record<string, string>) {
+    setPairs(next);
+    onChange(
+      q.prompts.every((p) => next[p.id] !== undefined) ? { type: 'matching', pairs: next } : null,
+    );
+  }
+  function tapPrompt(id: string) {
+    if (pairs[id] !== undefined) {
+      const rest = Object.fromEntries(Object.entries(pairs).filter(([k]) => k !== id));
+      setActive(id);
+      commit(rest);
+    } else setActive(active === id ? null : id);
+  }
+  function tapOption(optionId: string) {
+    const target = active ?? q.prompts.find((p) => pairs[p.id] === undefined)?.id;
+    if (!target) return;
+    const next = { ...pairs, [target]: optionId };
+    commit(next);
+    setActive(q.prompts.find((p) => next[p.id] === undefined)?.id ?? null);
+  }
+  return (
+    <div>
+      <p className="muted">Tap an item, then tap its match. Tap a pair to undo it.</p>
+      <ul className="match-prompts">
+        {q.prompts.map((p) => {
+          const paired = pairs[p.id];
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                className={`match-prompt${active === p.id ? ' active' : ''}`}
+                aria-pressed={active === p.id}
+                disabled={disabled}
+                onClick={() => tapPrompt(p.id)}
+              >
+                <span>{p.text}</span>
+                <span className="match-arrow" aria-hidden="true">
+                  →
+                </span>
+                <span className="match-value">
+                  {paired !== undefined ? `${optionText(paired)} (tap to undo)` : '…'}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="options" role="group" aria-label="Options">
+        {pool.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            className="option"
+            disabled={disabled}
+            onClick={() => tapOption(o.id)}
+          >
+            {o.text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

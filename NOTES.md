@@ -193,3 +193,32 @@ Mutation checks (2026-10-13; each made to the file, the tests run, the file rest
 ## 2026-10-13: Phase 4 approved
 
 Owner approved Phase 4 in the same chat. Phase 5 starts in a new chat (Sonnet, HANDOFF §6).
+
+## 2026-10-13: Phase 5 (the screens)
+
+Built in a new chat on `ccr-67c10ae0-ubtsvr`, as BUILD_PLAN Phase 5 describes. Choices the
+plan left open are in HANDOFF §3 item 17a (for the owner to confirm).
+
+- `src/ui/*` and `src/App.tsx` (see HANDOFF §1). No inline `style` attributes in the markup
+  (progress bars are `<progress>`, the goal ring is SVG attributes), so Phase 6's
+  `style-src 'self'` CSP will not block them. dnd-kit sets styles through the DOM API only.
+- Two real bugs the tests found while building: (1) the Settings form reset what she was
+  typing every time the phone re-read its data after a sync (it compared the settings object
+  by identity; now by content), and it did not show restored settings after an import;
+  (2) the "Choose 2" counter and dnd-kit's own live region both had `role=status`, so
+  the feedback box is now labelled "Feedback".
+- Checks: full chain green (see the report). Coverage stays 100% on `src/domain` and
+  `src/data`; `src/ui` is covered by component and browser tests but not held to a number.
+
+Mutation checks (2026-10-13; each made to the file, the tests run, the file restored):
+
+| Mutation | Caught by |
+|---|---|
+| stem rendered with `dangerouslySetInnerHTML` | xss.test (every type) (and lint bans it) |
+| multi: Check allowed at any count ≥ 1 | AnswerInputs "exactly selectCount" |
+| matching: complete with unpaired prompts | AnswerInputs matching tests |
+| reminder off without asking | Settings "asks before turning off" |
+| Check enabled with no answer | App "keeps Check off" |
+| draft reset by object identity | **not caught at first**; added "keeps what she is typing…"; now caught |
+
+(Also: vitest's per-test time limit raised from 5 s to 30 s in `vite.config.ts`: a Phase 1 property test timed out once at 13 s when run in parallel with the new screen tests; alone it takes 1.5 s. No check was loosened.)

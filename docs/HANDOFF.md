@@ -4,12 +4,30 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 4 (loading the questions onto the phone) is built and approved** (2026-10-13) on
-  branch `ccr-67c10ae0-ubtsvr`. Phases 0–4 approved; nothing merged to `main`.
-  **Next: Phase 5**, in a new chat (see §6).
+- **Phase 5 (the screens) is built and awaiting the owner's review** (2026-10-13) on branch
+  `ccr-67c10ae0-ubtsvr`. Phases 0–4 approved; nothing merged to `main`.
+  **After approval, next: Phase 6** (installable app, offline, updates), in a new chat (see §6).
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
-  Part B3 runs them later). The app still shows a placeholder screen: Phases 3–4 are the
-  data layer under the screens, which Phase 5 builds.
+  Part B3 runs them later). Until then the real app shows "The app is not configured" (the
+  Supabase address and key are repo variables set in SETUP); everything was tested against
+  a pretend server.
+- Phase 5 contents (`src/ui/`, `src/App.tsx`): `auth.ts` (email + password through
+  supabase-js; friendly error text), `deps.ts` (what the screens need from outside, so tests
+  can swap it), `useStudy.ts` (reads answers/settings/bank from the phone; card states,
+  progress and XP are recomputed), `SignIn`, `Home` (XP, goal ring, 5 area cards × 3 tier
+  bars + badges, area/tier pickers, Start lesson, Mistakes), `Lesson` (progress bar,
+  scenario box, Check, feedback, Continue; each answer saved with `guardedWrite`), the six
+  answer inputs in `AnswerInputs.tsx` (mc, multi, numeric, text, ordering with dnd-kit touch
+  drag + ▲/▼ + tap-then-"Move here", matching by tapping), `EndScreens` (lesson end, all
+  caught up), `Settings` (study pace, daily reminder, backup status line, export, import with
+  preview + confirmation, sign out with confirmation, build id), `Dialog` (in-app confirm).
+  New dependencies: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`; dev: `jsdom`,
+  `@testing-library/react`, `/dom`, `/user-event` (`npm audit`: 0 vulnerabilities).
+  Tests: ~80 new component tests (every input type, all six types through to feedback right
+  and wrong, XSS payloads in every text field, each screen's error states, export/import,
+  sign-out refusal) and 6 new Playwright tests (below). 7 mutation checks in NOTES.md.
+  Playwright now builds its own copy into `dist-e2e` with a pretend Supabase address and the
+  fake sample bank (nothing real is contacted; Phase 9 extends this).
 - Phase 4 contents: `src/data/bankLoader.ts` (`pickBank`: the newest copy that reads
   cleanly wins, ties prefer server → saved copy → built-in; `orderLike`: puts the server's
   rows back in the built-in file's order), `src/data/bankManager.ts` (`BankManager`: loads
@@ -234,6 +252,27 @@ changing):
    (d) The contract test clears the bank tables inside its own rolled-back transaction in
    the throwaway local database (the same override the recovery test uses).
 
+17a. Phase 5 choices the plan did not spell out (no money/safety impact; the owner can change
+   any of them, so please confirm or say what you'd like):
+   (a) Home remembers her last area/tier choice on the phone; the last area and the last tier
+   cannot be switched off (so a lesson is never "nothing selected"). (b) The Mistakes button
+   counts the Mistakes cards in the chosen areas/tiers. (c) ✕ in a lesson quits straight to Home
+   with no question asked (answers are already saved). (d) Settings: the four pace/date fields
+   have one **Save** button; the reminder switch and time save at once; turning the reminder
+   **off** asks first. (e) **The reminder switch only saves the preference for now: no
+   notification can be sent until Phase 7.** The "one-time home-screen card" and the
+   Safari "Add to Home Screen" card belong to Phase 6/7 (they need install detection).
+   (f) Matching: tapping an option with no prompt open fills the first empty prompt, and after
+   each pairing the next empty prompt opens. (g) Export file name `sphr-progress-YYYY-MM-DD.json`;
+   Settings shows when she last exported. (h) The time zone is shown but not editable.
+   (i) Two one-line hints (Ordering, Matching) are on the lesson screen because the controls
+   aren't obvious; CLAUDE.md says no help paragraphs on daily screens, so say if you want them
+   removed. (j) After a wrong answer her choice stays highlighted in green (same colour as a
+   plain selection); the red "Not quite" box and ✗ carry the verdict. Say if you'd like it
+   dimmed.
+   (k) Not tested on a real phone: the touch-drag in Ordering passes in desktop Chromium with
+   simulated touches; the ▲/▼ buttons are the dependable path.
+
 **Unverified facts (confirm during SETUP)**
 17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
@@ -269,7 +308,7 @@ node scripts/check-migrations.mjs
 npm run typecheck && npm run lint && npm test
 npm run build
 ./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, App↔DB contract (answers, settings, bank)
-npm run e2e                                # Playwright, iPhone 13 Pro Max profile
+npm run e2e                                # Playwright, iPhone 13 Pro Max profile; builds dist-e2e itself (pretend Supabase address)
 ```
 `npm test` runs vitest (domain, data layer and bank loader with fake IndexedDB and a fake server, UI) with
 100% coverage enforced on `src/domain` and `src/data`, and the Node guardrail tests (`scripts/*.test.mjs`: validator
