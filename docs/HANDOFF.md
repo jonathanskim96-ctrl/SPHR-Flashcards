@@ -4,9 +4,17 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 0 (scaffold, CI, guardrails) is built** on branch `ccr-67c10ae0-ubtsvr`, waiting
-  for the owner's OK before Phase 1 or any merge to `main`. No app features yet: the app
-  shows a placeholder screen.
+- **Phase 1 (domain layer) is built** on branch `ccr-67c10ae0-ubtsvr`, waiting for the
+  owner's OK before Phase 2 or any merge to `main`. Phase 0 was approved by the owner on
+  2026-10-13. The app still shows a placeholder screen (UI is Phase 5).
+- Phase 1 contents (`src/domain/`, pure, no I/O): `types.ts`, `dates.ts` (local dates via
+  Intl), `textNorm.ts`, `bank.ts` (normalizeBank, compareBankVersion, answerFp),
+  `grade.ts`, `xp.ts`, `schedule.ts`, `replay.ts`, `shuffle.ts`, `lesson.ts`,
+  `progress.ts`, `validate.ts`, `exportImport.ts`. 273 vitest tests + node tests; coverage
+  of `src/domain` is 100% (enforced in `npm test`); property tests run 1,000 cases each with
+  a fixed seed; the text normalizer is checked byte-for-byte against the validator and fuzzed
+  on 10,000 strings. New dependencies: `@noble/hashes` (SHA-256), dev: `fast-check`,
+  `@vitest/coverage-v8`.
 - Phase 0 contents: Vite 8 + React 19 + TypeScript 5.9 (strict) + vite-plugin-pwa 2
   (`base: '/SPHR-Flashcards/'`), ESLint (bans `dangerouslySetInnerHTML`, `innerHTML`,
   `eval`, `new Function`, `confirm/alert/prompt`), Prettier, vitest, Playwright 1.56.1
@@ -92,6 +100,10 @@ changing):
 **Needs the owner's input**
 1. Michelle's sign-in email, needed for SETUP step B6. Give it to Claude only if you want
    it written into the docs; otherwise just use it in the dashboard.
+1b. (Asked 2026-10-13, Phase 1) Daily reminder on first install: the code currently starts
+   with the reminder **off** until Michelle taps to turn it on (iOS only allows the
+   notification permission prompt from a tap). Options asked: keep off + one-time prompt
+   card (recommended), or off with no prompt. Needed before Phase 7.
 
 **Content (for the owner's question-writing project; no app action needed)**
 2. 102 free-response worksheet items were rewritten as multiple choice.
@@ -112,14 +124,20 @@ changing):
    `-- guardrail-approved: <who, date, why>` comment sits directly above it. Function and
    trigger *definitions* (code inside `$$ … $$`) and `grant`/`revoke` are not counted.
 9. `scripts/validate-bank.mjs` is excluded from Prettier so it stays exactly as reviewed.
-10. CI installs Playwright's Chromium on the GitHub runner (`npx playwright install`); the
+10. Phase 1 implementation choices (no product trade-off; tell the owner if one matters):
+   the answer fingerprint ignores the *order* of choices/items/options in the file and the
+   order of `accepted` (only their content counts); a wrong answer must record 0 XP; card
+   dates follow the current Settings time zone, so changing it recalculates the calendar day of
+   past answers; a Mistakes card is ordered by the date of its most recent wrong answer;
+   attempts are checked for ≤ 1 day in the future against the device clock.
+11. CI installs Playwright's Chromium on the GitHub runner (`npx playwright install`); the
    cloud session never does (it uses the pre-installed one).
 
 **Unverified facts (confirm during SETUP)**
-11. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
+12. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
    SETUP Part G lists what to check on the live dashboard.
-12. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
+13. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
     emails first, and re-enabling is one click (SETUP Part D). Any commit resets the clock.
 
 ## 4. Platform facts this plan relies on

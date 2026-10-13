@@ -43,3 +43,25 @@ Branch `ccr-67c10ae0-ubtsvr`.
   first validation step the same way, and `deploy.yml` builds only after `verify` (= CI)
   passes, and `build-bank.mjs` refuses to copy an invalid bank (tested), so a bad bank
   cannot be deployed.
+
+## 2026-10-13: Phase 1 (domain layer)
+
+Owner approved Phase 0 and asked for Phase 1 on the same branch, no merge to `main`.
+
+- `src/domain/` modules as listed in HANDOFF §1. Pure functions; `today`/`now` are passed in.
+- Answer fingerprint: SHA-256 (`@noble/hashes`, sync, audited) over canonical JSON (keys
+  sorted) of the graded fields, with choices/items/prompts/options sorted by id and
+  `accepted`/multi answers sorted, so reordering in the file never resets progress. A test
+  pins the value for `fake1-q01` (`b095ba8822800878`), computed independently with Node's
+  crypto: if the formula ever changes, that test fails before anyone's progress resets.
+- Grading follows BUILD_PLAN 1b exactly; all real-bank edge cases listed in the plan pass,
+  and every one of the 400 real questions grades its own canonical answer as correct (and
+  every other single mc/multi choice as wrong). The real bank is only read.
+- `scripts/norm-parity.test.mjs` imports `src/domain/textNorm.ts` directly (Node 22 strips
+  types), checks the expression is byte-identical to the validator's, and fuzzes both on
+  10,000 strings including Unicode spaces, dashes and curly quotes.
+- Fuzz (fast-check, 1,000 runs, seed 20261013): box range, due ≥ last answer + 1, exam cap,
+  Mistakes membership vs an independent model, order-independence, union merge order, XP
+  totals, lesson invariants (no duplicates, no retired, no same-day repeats, selection only).
+- Coverage reached 100% by restructuring two unreachable fallbacks (not by excluding lines).
+- Settings default `reminderEnabled: false` (asked the owner; see HANDOFF).

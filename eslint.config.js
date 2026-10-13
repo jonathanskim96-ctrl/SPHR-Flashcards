@@ -28,7 +28,17 @@ const unsafeHtml = [
 ];
 
 export default tseslint.config(
-  { ignores: ['dist', 'dev-dist', 'node_modules', 'public', 'playwright-report', 'test-results'] },
+  {
+    ignores: [
+      'coverage',
+      'dist',
+      'dev-dist',
+      'node_modules',
+      'public',
+      'playwright-report',
+      'test-results',
+    ],
+  },
   {
     files: ['**/*.{js,mjs,ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

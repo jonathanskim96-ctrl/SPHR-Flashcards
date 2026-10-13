@@ -12,3 +12,4 @@ test-results/
 supabase/migrations/migrations.lock.json
 # Kept exactly as reviewed in planning (its norm() is the grading reference).
 scripts/validate-bank.mjs
+coverage/

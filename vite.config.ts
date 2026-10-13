@@ -34,5 +34,13 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.ts'],
     environment: 'node',
+    coverage: {
+      provider: 'v8',
+      include: ['src/domain/**/*.ts'],
+      exclude: ['src/domain/**/*.test.ts', 'src/domain/types.ts'],
+      reporter: ['text-summary', 'text'],
+      // BUILD_PLAN Phase 1: 100% of the domain is covered by tests.
+      thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
+    },
   },
 });

@@ -13,10 +13,11 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "lint": "eslint . --max-warnings 0 && prettier --check .",
     "format": "prettier --write .",
-    "test": "vitest run && node --test \"scripts/*.test.mjs\"",
+    "test": "vitest run --coverage && node --test \"scripts/*.test.mjs\"",
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -27,8 +28,10 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "@vitest/coverage-v8": "^5.0.4",
     "eslint": "^10.0.1",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "fast-check": "^4.10.2",
     "globals": "^17.13.0",
     "prettier": "^3.9.10",
     "typescript": "^5.9.3",
