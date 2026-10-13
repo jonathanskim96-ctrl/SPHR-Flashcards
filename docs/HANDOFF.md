@@ -4,9 +4,9 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 4 (loading the questions onto the phone) is built, waiting for the owner's OK**
-  (2026-10-13) on branch `ccr-67c10ae0-ubtsvr`. Phases 0–3 approved; nothing merged to
-  `main`. **Next, after the owner's OK: Phase 5**, in a new chat (see §6).
+- **Phase 4 (loading the questions onto the phone) is built and approved** (2026-10-13) on
+  branch `ccr-67c10ae0-ubtsvr`. Phases 0–4 approved; nothing merged to `main`.
+  **Next: Phase 5**, in a new chat (see §6).
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
   Part B3 runs them later). The app still shows a placeholder screen: Phases 3–4 are the
   data layer under the screens, which Phase 5 builds.

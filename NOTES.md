@@ -189,3 +189,7 @@ Mutation checks (2026-10-13; each made to the file, the tests run, the file rest
 | changed-during-read check removed | supabaseBackend "refuses a bank that changed…" |
 | winner not saved on the phone | bankManager "…then saved" |
 | local reload may go back a version | bankManager "the same version again changes nothing" |
+
+## 2026-10-13: Phase 4 approved
+
+Owner approved Phase 4 in the same chat. Phase 5 starts in a new chat (Sonnet, HANDOFF §6).
