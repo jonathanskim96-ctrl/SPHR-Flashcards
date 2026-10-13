@@ -222,3 +222,7 @@ Mutation checks (2026-10-13; each made to the file, the tests run, the file rest
 | draft reset by object identity | **not caught at first**; added "keeps what she is typing…"; now caught |
 
 (Also: vitest's per-test time limit raised from 5 s to 30 s in `vite.config.ts`: a Phase 1 property test timed out once at 13 s when run in parallel with the new screen tests; alone it takes 1.5 s. No check was loosened.)
+
+## 2026-10-13: Phase 5 approved
+
+Owner approved Phase 5 and kept all five small defaults as built (HANDOFF §2). Phase 6 starts in a new chat (Sonnet, HANDOFF §6).

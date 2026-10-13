@@ -4,9 +4,9 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 5 (the screens) is built and awaiting the owner's review** (2026-10-13) on branch
-  `ccr-67c10ae0-ubtsvr`. Phases 0–4 approved; nothing merged to `main`.
-  **After approval, next: Phase 6** (installable app, offline, updates), in a new chat (see §6).
+- **Phase 5 (the screens) is built and approved** (2026-10-13) on branch
+  `ccr-67c10ae0-ubtsvr`. Phases 0–5 approved; nothing merged to `main`.
+  **Next: Phase 6** (installable app, offline, updates), in a new chat (see §6).
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
   Part B3 runs them later). Until then the real app shows "The app is not configured" (the
   Supabase address and key are repo variables set in SETUP); everything was tested against
@@ -146,6 +146,7 @@ Decided in the planning session (2026-10-13):
 | Reminder on first install | **Off until she turns it on; a one-time home-screen card offers "Turn on daily reminder (3:00 PM)?"** with a button; dismissing it leaves Settings as the way to turn it on (decided 2026-10-13, Phase 1) |
 | Safety-log writer | **Option A approved**: one SECURITY DEFINER trigger function (`log_change`) writes the safety log; the app has no access to the log (decided 2026-10-13, Phase 2) |
 | Chats and models | **One new chat per phase.** Opus for Phases 3, 7, 9; Sonnet is fine for 4, 5, 6, 8 (see §6). Every end-of-phase report tells the owner to open a new chat (decided 2026-10-13) |
+| Phase 5 screen defaults | **All five kept as built** (2026-10-13): remembered area/tier choice with the last one unswitchable; ✕ quits with no question; one Save button for pace fields, reminder saves at once and asks before turning off; one-line hints on Ordering and Matching; a wrong choice stays highlighted green (the owner chose "keep" over the recommended dimming; revisit only if asked) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
 Design choices made in planning (no product trade-off, but worth knowing):
