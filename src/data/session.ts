@@ -4,6 +4,7 @@
 import { isTimeZone } from '../domain/dates';
 import { defaultSettings } from '../domain/validate';
 import type { Backend } from './backend';
+import { BankManager, fetchBundledBank } from './bankManager';
 import { deleteUserDb, openUserDb } from './db';
 import { errorText, LocalStore } from './store';
 import { browserEnv, SyncEngine, type SyncEnv } from './sync';
@@ -12,6 +13,8 @@ export interface Session {
   userId: string;
   store: LocalStore;
   engine: SyncEngine;
+  /** The question bank (loads in the background; screens subscribe to it). */
+  bank: BankManager;
   /** The result of asking for persistent storage. */
   persistence: Promise<PersistResult>;
   factory: IDBFactory | undefined;
@@ -24,6 +27,8 @@ export interface SessionOptions {
   env?: SyncEnv;
   deviceTimeZone?: string;
   storage?: StorageManagerLike | undefined;
+  /** Reads the copy of the bank built into the app (default: fetch `bank.json`). */
+  loadBundled?: () => Promise<unknown>;
 }
 
 export async function openSession(o: SessionOptions): Promise<Session> {
@@ -40,7 +45,9 @@ export async function openSession(o: SessionOptions): Promise<Session> {
     'storage' in o ? o.storage : globalThis.navigator?.storage,
   );
   engine.start();
-  return { userId: o.userId, store, engine, persistence, factory: o.factory };
+  const bank = new BankManager(store, o.backend, o.loadBundled ?? (() => fetchBundledBank()), env);
+  void bank.start();
+  return { userId: o.userId, store, engine, bank, persistence, factory: o.factory };
 }
 
 /**
@@ -114,6 +121,7 @@ export async function signOut(session: Session, auth: AuthLike): Promise<SignOut
     const { error } = await auth.signOut();
     if (error) return { ok: false, reason: 'error', error: `Sign-out failed: ${error.message}` };
     session.engine.stop();
+    session.bank.stop();
     session.store.close();
     await deleteUserDb(session.userId, session.factory);
     return { ok: true };

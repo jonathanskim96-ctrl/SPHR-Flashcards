@@ -74,3 +74,15 @@ export function buildLesson(input: LessonInput): Question[] {
 function cmp(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
+
+/**
+ * After the bank changed mid-lesson (BUILD_PLAN Phase 4): the rest of the lesson in the new
+ * bank's version of each card. Cards that were retired or are no longer in the bank drop out.
+ */
+export function refreshLesson(remaining: readonly Question[], bank: Bank): Question[] {
+  const byId = new Map(bank.questions.map((q) => [q.id, q]));
+  return remaining.flatMap((q) => {
+    const now = byId.get(q.id);
+    return now && now.status === 'active' ? [now] : [];
+  });
+}

@@ -152,3 +152,40 @@ Mutation checks (2026-10-13; each made to the file, the tests run, the file rest
 ## 2026-10-13: Phase 3 approved
 
 Owner approved Phase 3 in the same chat. Phase 4 starts in a new chat (Sonnet, HANDOFF §6).
+
+## 2026-10-13: Phase 4 (question delivery)
+
+Built in a new chat on `ccr-67c10ae0-ubtsvr`, as BUILD_PLAN Phase 4 describes. No product
+decisions were needed; implementation choices are in HANDOFF §3 item 16.
+
+- `src/data/bankLoader.ts` (pick the newest clean copy; ties server → saved → built-in;
+  restore the file's order for the server copy), `src/data/bankManager.ts` (local copies
+  first, then the server; download only when the version differs from the saved copy and
+  could win; re-check on wake at most every 10 minutes, a failed check doesn't count; save
+  the winner; hold a new bank until the card on screen is finished; report problems once),
+  Supabase reads (`getBankVersion`, `getBank`, paged, consistent-read check),
+  `refreshLesson` (domain), session wiring.
+- Tests: offline + empty cache → built-in; server newer → server; server older than
+  built-in → built-in, nothing downloaded; damaged saved copy → falls back, reported once,
+  repaired; same version as saved → no download; stem-only edit keeps the card, answer
+  change resets it, retired card leaves progress denominators (answers untouched); bank
+  arriving mid-card waits; server copy keeps the built-in order. App↔DB contract: the fake
+  bank and the real bank go through the real `import_bank` and come back identical (order,
+  content, fingerprints). The first version of that test found that scenarios came back in
+  id order; `orderLike` now restores scenarios too.
+
+Mutation checks (2026-10-13; each made to the file, the tests run, the file restored):
+
+| Mutation | Caught by |
+|---|---|
+| oldest copy wins | bankLoader "uses the newest copy" |
+| tie order reversed (built-in over server) | bankLoader "on a tie prefers the server" |
+| clean copy not preferred | bankLoader "passes over a newer copy…"; bankManager damaged same-version copy |
+| always download | bankManager "no download"; 10-minute test |
+| new bank switched in mid-card | bankManager "waits until the card is finished" |
+| 10-minute limit removed | bankManager "at most every 10 minutes" |
+| server copy not put back in file order | **not caught at first** (the fake bank is already in id order); test now uses a reversed built-in copy; now caught |
+| retired card kept mid-lesson | lesson "refreshLesson"; bankManager mid-card test |
+| changed-during-read check removed | supabaseBackend "refuses a bank that changed…" |
+| winner not saved on the phone | bankManager "…then saved" |
+| local reload may go back a version | bankManager "the same version again changes nothing" |

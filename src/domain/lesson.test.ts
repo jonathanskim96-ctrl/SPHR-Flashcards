@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { buildLesson, newCardsToday, type Selection } from './lesson';
+import { buildLesson, newCardsToday, refreshLesson, type Selection } from './lesson';
 import { replay } from './replay';
 import type { Attempt, Bank, CardState, Level, Mode, Question } from './types';
 import { AREA_IDS, LEVELS } from './types';
@@ -215,5 +215,27 @@ describe('lesson invariants (fuzz)', () => {
       ),
       { numRuns: 1000, seed: 20261013 },
     );
+  });
+});
+
+describe('refreshLesson (the bank changed mid-lesson)', () => {
+  it('swaps in the new version of each card and drops retired or missing ones', () => {
+    const old = fakeBank();
+    const rest = ['fake1-q01', 'fake1-q02', 'fake1-q03'].map((id) => q(old, id));
+    const next: Bank = {
+      ...old,
+      questions: old.questions
+        .filter((x) => x.id !== 'fake1-q03')
+        .map((x) =>
+          x.id === 'fake1-q01'
+            ? { ...x, stem: 'FAKE: reworded?', revision: 2 }
+            : x.id === 'fake1-q02'
+              ? { ...x, status: 'retired' as const }
+              : x,
+        ),
+    };
+    const got = refreshLesson(rest, next);
+    expect(got.map((x) => [x.id, x.stem])).toEqual([['fake1-q01', 'FAKE: reworded?']]);
+    expect(refreshLesson([], next)).toEqual([]);
   });
 });

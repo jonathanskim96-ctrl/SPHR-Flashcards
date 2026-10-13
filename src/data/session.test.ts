@@ -9,7 +9,7 @@ import {
   testEnv,
   USER,
 } from '../../tests/dataHelpers';
-import { TZ } from '../../tests/helpers';
+import { rawSample, TZ } from '../../tests/helpers';
 import { openUserDb } from './db';
 import {
   ensureSettings,
@@ -17,7 +17,6 @@ import {
   requestPersistentStorage,
   signOut,
   signOutBlockedText,
-  type Session,
 } from './session';
 import { LocalStore } from './store';
 
@@ -30,6 +29,7 @@ async function session(server: FakeServer, clock: Clock, factory = new IDBFactor
     env: net.env,
     deviceTimeZone: TZ,
     storage: { persisted: async () => false, persist: async () => true },
+    loadBundled: async () => rawSample(),
   });
   return { s, net, factory };
 }
@@ -37,6 +37,18 @@ async function session(server: FakeServer, clock: Clock, factory = new IDBFactor
 const okAuth = { signOut: vi.fn(async () => ({ error: null })) };
 
 describe('openSession', () => {
+  it('loads the question bank in the background', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    const { s } = await session(server, clock);
+    await vi.waitFor(() => expect(s.bank.bank?.bankVersion).toBe('2026-10-13.1'));
+    await vi.waitFor(() => expect(s.bank.status().checking).toBe(false));
+    expect(s.bank.status()).toMatchObject({ source: 'bundled', lastError: null });
+    s.engine.stop();
+    s.bank.stop();
+    s.store.close();
+  });
+
   it('takes the server settings, asks for persistent storage and starts syncing', async () => {
     const clock = new Clock();
     const server = new FakeServer(() => clock.now);
@@ -140,13 +152,14 @@ describe('requestPersistentStorage', () => {
 });
 
 describe('signOut', () => {
-  async function withPending(): Promise<{ s: Session; server: FakeServer; factory: IDBFactory }> {
+  async function withPending() {
     const clock = new Clock();
     const server = new FakeServer(() => clock.now);
-    const { s, factory } = await session(server, clock);
+    const { s, factory, net } = await session(server, clock);
     await s.engine.sync();
+    await vi.waitFor(() => expect(s.bank.bank).not.toBeNull());
     s.engine.stop();
-    return { s, server, factory };
+    return { s, server, factory, net };
   }
 
   it('is refused while answers are waiting to back up, and keeps everything', async () => {
@@ -165,7 +178,7 @@ describe('signOut', () => {
   });
 
   it('syncs first, then signs out and deletes this user’s local data', async () => {
-    const { s, server, factory } = await withPending();
+    const { s, server, factory, net } = await withPending();
     const clock = new Clock();
     const helper = await device(server, clock);
     const a = await helper.answer('fake1-q01', RIGHT);
@@ -174,6 +187,7 @@ describe('signOut', () => {
       attempt: { ...a, id: '00000000-0000-4000-8000-0000000fffff' },
     });
     expect(await signOut(s, okAuth)).toEqual({ ok: true });
+    expect(net.wakers.size).toBe(0); // the bank stopped checking too
     expect(server.rows.map((r) => r.attempt.id)).toContain('00000000-0000-4000-8000-0000000fffff');
     expect(await factory.databases()).toEqual([]);
     const reopened = new LocalStore(await openUserDb(USER, factory));

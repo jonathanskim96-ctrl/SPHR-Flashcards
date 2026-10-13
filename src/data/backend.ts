@@ -44,6 +44,14 @@ export interface Backend {
   pullAttempts(afterSeq: number, limit: number): Promise<PullPage>;
   /** The saved settings, or null if this account has none yet. */
   getSettings(): Promise<VersionedSettings | null>;
+  /** The version of the question bank on the server, or null if none was imported yet. */
+  getBankVersion(): Promise<string | null>;
+  /**
+   * The whole question bank on the server, as untrusted JSON in the file's shape (the
+   * loader normalizes it), or null if none was imported yet. Throws if the bank changed
+   * while it was being read.
+   */
+  getBank(): Promise<unknown>;
 }
 
 export interface PullPage {
@@ -60,6 +68,10 @@ export const ATTEMPT_COLUMNS =
 /** The columns the app reads from `settings`. */
 export const SETTINGS_COLUMNS =
   'new_per_day,lesson_size,daily_xp_goal,exam_date,reminder_enabled,reminder_time,time_zone,version';
+/** The columns the app reads from `bank_meta`. */
+export const BANK_META_COLUMNS = 'schema_version,bank_version,areas,levels';
+/** Rows per request when reading questions and scenarios (Supabase returns at most 1,000). */
+export const BANK_PAGE = 1000;
 export const MAX_BATCH = 200;
 export const PULL_PAGE = 500;
 
@@ -169,5 +181,32 @@ export function parseApplyResult(raw: unknown): ApplyResult {
     serverSettings: raw.server_settings == null ? null : fromSettingsJson(raw.server_settings),
     settingsError: raw.settings_error,
     maxSeq: raw.max_seq,
+  };
+}
+
+/** The `bank_meta` row → its bank version (null if the row is missing or unreadable). */
+export function bankVersionOf(meta: unknown): string | null {
+  return isObj(meta) && typeof meta.bank_version === 'string' ? meta.bank_version : null;
+}
+
+/**
+ * The server's tables → a bank in the file's shape (`content/questions.json`). Each row's
+ * `data` is the question or scenario exactly as imported. The result is still untrusted:
+ * the loader normalizes it like any other copy.
+ */
+export function assembleServerBank(
+  meta: unknown,
+  scenarioRows: readonly unknown[],
+  questionRows: readonly unknown[],
+): unknown {
+  if (!isObj(meta)) throw new Error('The server sent an unreadable question bank.');
+  const data = (r: unknown) => (isObj(r) ? r.data : r);
+  return {
+    schemaVersion: meta.schema_version,
+    bankVersion: meta.bank_version,
+    areas: meta.areas,
+    levels: meta.levels,
+    scenarios: scenarioRows.map(data),
+    questions: questionRows.map(data),
   };
 }

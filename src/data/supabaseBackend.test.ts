@@ -158,6 +158,81 @@ describe('Supabase backend', () => {
   });
 });
 
+describe('Supabase backend: the question bank', () => {
+  const meta = (v: string) => ({
+    schema_version: 1,
+    bank_version: v,
+    areas: [{ id: 1, name: 'One' }],
+    levels: { K: { points: 1 } },
+  });
+  const rowsFor = (table: string, n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `${table}-${i}`, data: { id: `${table}-${i}` } }));
+
+  it('getBankVersion reads bank_meta (null when nothing was imported)', async () => {
+    const { backend, calls } = fakeClient(() => ({ json: [meta('2026-10-13.1')] }));
+    expect(await backend.getBankVersion()).toBe('2026-10-13.1');
+    expect(calls[0]!.path).toBe('/rest/v1/bank_meta');
+    expect(calls[0]!.search.get('select')).toBe('schema_version,bank_version,areas,levels');
+    expect(calls[0]!.search.get('id')).toBe('eq.1');
+    const { backend: none } = fakeClient(() => ({ json: [] }));
+    expect(await none.getBankVersion()).toBeNull();
+    expect(await none.getBank()).toBeNull();
+  });
+
+  it('getBank reads every row page by page, ordered by id, in the file shape', async () => {
+    const questions = rowsFor('q', 2345);
+    const { backend, calls } = fakeClient((c) => {
+      if (c.path === '/rest/v1/bank_meta') return { json: [meta('2026-10-13.1')] };
+      const all = c.path === '/rest/v1/questions' ? questions : rowsFor('s', 3);
+      const from = Number(c.search.get('offset') ?? 0);
+      return { json: all.slice(from, from + Number(c.search.get('limit'))) };
+    });
+    const bank = (await backend.getBank()) as Record<string, unknown[]>;
+    expect(bank).toMatchObject({ schemaVersion: 1, bankVersion: '2026-10-13.1' });
+    expect(bank.areas).toEqual([{ id: 1, name: 'One' }]);
+    expect(bank.questions).toEqual(questions.map((r) => r.data));
+    expect(bank.scenarios).toHaveLength(3);
+    const q = calls.filter((c) => c.path === '/rest/v1/questions');
+    expect(q.map((c) => [c.search.get('offset') ?? '0', c.search.get('limit')])).toEqual([
+      ['0', '1000'],
+      ['1000', '1000'],
+      ['2000', '1000'],
+    ]);
+    expect(q[0]!.search.get('order')).toBe('id.asc');
+    expect(q[0]!.search.get('select')).toBe('id,data');
+    expect(calls.filter((c) => c.path === '/rest/v1/bank_meta')).toHaveLength(2);
+  });
+
+  it('refuses a bank that changed on the server while it was being read', async () => {
+    let n = 0;
+    const { backend } = fakeClient((c) => {
+      if (c.path === '/rest/v1/bank_meta')
+        return { json: [meta(n++ ? '2026-10-14.1' : '2026-10-13.1')] };
+      return { json: [] };
+    });
+    await expect(backend.getBank()).rejects.toThrow('changed on the server while loading');
+  });
+
+  it('turns errors into readable messages', async () => {
+    const { backend } = fakeClient(() => ({ status: 500, json: { message: 'boom' } }));
+    await expect(backend.getBankVersion()).rejects.toThrow(
+      'Reading the questions from the server failed: boom',
+    );
+    const { backend: b2 } = fakeClient((c) =>
+      c.path === '/rest/v1/bank_meta'
+        ? { json: [meta('2026-10-13.1')] }
+        : { status: 500, json: { message: 'nope' } },
+    );
+    await expect(b2.getBank()).rejects.toThrow(
+      'Reading the questions from the server failed: nope',
+    );
+    const { backend: b3 } = fakeClient((c) =>
+      c.path === '/rest/v1/bank_meta' ? { json: [meta('2026-10-13.1')] } : { json: null },
+    );
+    expect(await b3.getBank()).toMatchObject({ questions: [], scenarios: [] });
+  });
+});
+
 describe('createAppClient', () => {
   it('needs the URL and the publishable key', () => {
     expect(() => createAppClient('', 'x')).toThrow('not configured');

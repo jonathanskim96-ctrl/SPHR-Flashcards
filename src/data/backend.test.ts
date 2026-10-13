@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { settings0 } from '../../tests/dataHelpers';
 import {
+  assembleServerBank,
+  bankVersionOf,
   canonicalTimestamp,
   fromServerAttempt,
   fromServerSettingsRow,
@@ -100,5 +102,28 @@ describe('server replies', () => {
     expect(canonicalTimestamp('2026-10-13T20:00:00+00:00')).toBe('2026-10-13T20:00:00.000Z');
     expect(canonicalTimestamp('2026-10-13 13:00:00-07')).toBe('2026-10-13T20:00:00.000Z');
     expect(canonicalTimestamp('2026-10-13T20:00:00.123456Z')).toBe('2026-10-13T20:00:00.123Z');
+  });
+});
+
+describe('the bank from the server tables', () => {
+  it('assembles the file shape from bank_meta and the rows', () => {
+    const meta = { schema_version: 1, bank_version: '2026-10-13.1', areas: [], levels: {} };
+    expect(
+      assembleServerBank(meta, [{ id: 's', data: { id: 's' } }], [{ data: { id: 'q' } }, 5]),
+    ).toEqual({
+      schemaVersion: 1,
+      bankVersion: '2026-10-13.1',
+      areas: [],
+      levels: {},
+      scenarios: [{ id: 's' }],
+      questions: [{ id: 'q' }, 5],
+    });
+    expect(() => assembleServerBank(null, [], [])).toThrow('unreadable question bank');
+  });
+
+  it('reads the version from bank_meta', () => {
+    expect(bankVersionOf({ bank_version: '2026-10-13.1' })).toBe('2026-10-13.1');
+    expect(bankVersionOf({ bank_version: 3 })).toBeNull();
+    expect(bankVersionOf(null)).toBeNull();
   });
 });

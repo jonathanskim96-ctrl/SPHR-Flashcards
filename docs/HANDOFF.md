@@ -4,12 +4,28 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 3 (offline saving and syncing) is built and approved** (2026-10-13) on branch
-  `ccr-67c10ae0-ubtsvr`. Phases 0–3 approved; nothing merged to `main`.
-  **Next: Phase 4**, in a new chat (see §6).
+- **Phase 4 (loading the questions onto the phone) is built, waiting for the owner's OK**
+  (2026-10-13) on branch `ccr-67c10ae0-ubtsvr`. Phases 0–3 approved; nothing merged to
+  `main`. **Next, after the owner's OK: Phase 5**, in a new chat (see §6).
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
-  Part B3 runs them later). The app still shows a placeholder screen: Phase 3 is the data
-  layer under the screens, which Phase 5 builds.
+  Part B3 runs them later). The app still shows a placeholder screen: Phases 3–4 are the
+  data layer under the screens, which Phase 5 builds.
+- Phase 4 contents: `src/data/bankLoader.ts` (`pickBank`: the newest copy that reads
+  cleanly wins, ties prefer server → saved copy → built-in; `orderLike`: puts the server's
+  rows back in the built-in file's order), `src/data/bankManager.ts` (`BankManager`: loads
+  the saved and built-in copies at once, then asks the server for `bank_meta`; downloads
+  questions and scenarios only when the server's version differs from the saved copy and
+  could win; re-checks on return to foreground / back online, at most every 10 minutes;
+  saves the winner on the phone; `beginCard()`/`endCard()` hold a new bank until the card on
+  screen is finished; problems go to the Settings notices once per session), Supabase reads
+  in `supabaseBackend.ts` (`getBankVersion`, `getBank`: pages of 1,000 ordered by id,
+  refuses a bank that changed mid-read), `refreshLesson` in `src/domain/lesson.ts` (the
+  rest of a lesson in the new bank; retired cards drop out). `openSession` now starts the
+  bank manager (`session.bank`); sign-out stops it. Tests: every case in BUILD_PLAN
+  Phase 4, plus the App↔DB contract test now imports the fake bank **and the real bank**
+  into local Postgres (rolled back), reads them back as the signed-in user, and checks they
+  equal the file exactly (same order, same answer fingerprints). 11 mutation checks in
+  NOTES.md, all caught. No new dependencies.
 - Phase 3 contents (`src/data/`): `db.ts` (IndexedDB via `idb`, one database per user id:
   stores `bank`, `attempts`, `outbox`, `settings`, `meta`), `store.ts` (`LocalStore`;
   `guardedWrite` validates with the domain validator and writes the answer + outbox entry in
@@ -205,11 +221,24 @@ changing):
    an iPhone reports is in the contract test and accepted by both. If a server ever refuses
    a zone, she sees "Settings could not be saved: timeZone …" in Settings.
 
+16. Phase 4 implementation notes (no product trade-off; tell the owner if one matters):
+   (a) "Reads cleanly" means no question had to be skipped. A newer copy with unreadable
+   questions is passed over for an older clean one, with a notice; if no copy is clean, the
+   newest readable one is used and the skipped ids are listed. This can't happen with a bank
+   that passed the validator. (b) The database has no order column, so the server copy is
+   put back in the order of the app's built-in file (new ids last, by id); without this,
+   new cards would come in id order whenever the server copy is used. (c) A damaged saved
+   copy is reported once ("The copy of the questions saved on this phone could not be read
+   …") and overwritten with the winner. Failing to reach the server is not a notice (offline
+   is normal); it shows as the bank status's last error, which Phase 5 places.
+   (d) The contract test clears the bank tables inside its own rolled-back transaction in
+   the throwaway local database (the same override the recovery test uses).
+
 **Unverified facts (confirm during SETUP)**
-16. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
+17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
    SETUP Part G lists what to check on the live dashboard.
-17. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
+18. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
     emails first, and re-enabling is one click (SETUP Part D). Any commit resets the clock.
 
 ## 4. Platform facts this plan relies on
@@ -239,10 +268,10 @@ node scripts/validate-bank.mjs tests/fixtures/sample-bank.json
 node scripts/check-migrations.mjs
 npm run typecheck && npm run lint && npm test
 npm run build
-./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, App↔DB contract
+./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, App↔DB contract (answers, settings, bank)
 npm run e2e                                # Playwright, iPhone 13 Pro Max profile
 ```
-`npm test` runs vitest (domain, data layer with fake IndexedDB and a fake server, UI) with
+`npm test` runs vitest (domain, data layer and bank loader with fake IndexedDB and a fake server, UI) with
 100% coverage enforced on `src/domain` and `src/data`, and the Node guardrail tests (`scripts/*.test.mjs`: validator
 self-test on `tests/fixtures/bad-banks/`, `--previous`, check-migrations, build-bank).
 `run.sh` needs a local PostgreSQL (`initdb`); as root it runs the server as the `postgres`

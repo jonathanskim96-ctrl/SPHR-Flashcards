@@ -14,8 +14,10 @@ import {
   parseApplyResult,
   SETTINGS_COLUMNS,
 } from '../../../src/data/backend';
+import { assembleServerBank, BANK_META_COLUMNS } from '../../../src/data/backend';
+import { orderLike, pickBank } from '../../../src/data/bankLoader';
 import { buildAttempt } from '../../../src/data/answer';
-import { normalizeBank } from '../../../src/domain/bank';
+import { answerFp, normalizeBank } from '../../../src/domain/bank';
 import type { Attempt, Bank } from '../../../src/domain/types';
 import {
   defaultSettings,
@@ -30,6 +32,7 @@ import {
   subscriptionCases,
 } from '../../../tests/contract/cases';
 import sample from '../../../tests/fixtures/sample-bank.json';
+import real from '../../../content/questions.json';
 import { sql, sqlOk } from './psql';
 
 const USER = '00000000-0000-4000-8000-00000000c0de';
@@ -243,4 +246,52 @@ describe('the app and the database accept exactly the same values', () => {
       `database${r.ok ? '' : `: ${r.error}`}`,
     ).toBe(c.accept);
   });
+});
+
+describe('the question bank through the real tables (Phase 4)', () => {
+  /**
+   * Imports a bank as the service role, then reads it back as the signed-in user the way the
+   * app's PostgREST calls do, all in one transaction that is rolled back (this throwaway
+   * local database only). The bank is sent
+   * inside the SQL text (dollar-quoted), so it is never stored anywhere else.
+   */
+  function roundTrip(raw: unknown): unknown {
+    const json = JSON.stringify(raw);
+    if (json.includes('$bank$')) throw new Error('bank text contains the quote marker');
+    const out = sqlOk(
+      // Earlier test files leave their own fake bank behind; start this transaction from
+      // empty bank tables (rolled back below, like everything else here).
+      `begin;
+       set local app.guardrail_override = 'test: contract round trip, rolled back';
+       delete from public.questions; delete from public.scenarios; delete from public.bank_meta;
+       select tests.login_service() \\gset
+       select public.import_bank($bank$${json}$bank$::jsonb, true) -> 'errors';
+       select tests.login(:'uid') \\gset
+       select row_to_json(t) from (select ${BANK_META_COLUMNS} from public.bank_meta where id = 1) t;
+       select coalesce(json_agg(row_to_json(t) order by t.id), '[]') from (select id, data from public.scenarios) t;
+       select coalesce(json_agg(row_to_json(t) order by t.id), '[]') from (select id, data from public.questions) t;
+       rollback;`,
+      { uid: USER },
+    );
+    const lines = out.split('\n');
+    expect(lines).toHaveLength(4);
+    const [errors, meta, scenarios, questions] = lines.map((l) => JSON.parse(l) as unknown);
+    expect(errors).toEqual([]);
+    return assembleServerBank(meta, scenarios as unknown[], questions as unknown[]);
+  }
+
+  for (const [name, file] of [
+    ['the fake sample bank', sample],
+    ['the real bank (read only, rolled back)', real],
+  ] as const)
+    it(`${name} reads back identical, in the file's order, with the same fingerprints`, () => {
+      const fromServer = orderLike(roundTrip(file), file);
+      const r = pickBank([{ source: 'server', raw: fromServer }]);
+      if (!r.ok) throw new Error(r.problems.join('; '));
+      expect(r.problems).toEqual([]);
+      const local = normalizeBank(structuredClone(file));
+      if (!local.ok) throw new Error(local.error);
+      expect(r.picked.bank).toEqual(local.bank);
+      expect(r.picked.bank.questions.map(answerFp)).toEqual(local.bank.questions.map(answerFp));
+    });
 });

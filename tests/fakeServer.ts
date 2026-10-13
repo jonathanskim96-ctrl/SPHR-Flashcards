@@ -4,6 +4,7 @@
 // the real conversion functions in src/data/backend.ts are exercised. The real database is
 // checked against the same client code by supabase/tests/60_contract.test.sh.
 import {
+  assembleServerBank,
   fromServerAttempt,
   fromServerSettingsRow,
   parseApplyResult,
@@ -35,6 +36,9 @@ export class FakeServer {
   loseReplies = 0;
   /** Answer ids the server refuses (beyond what the validator refuses). */
   refuse = new Map<string, string>();
+  /** The imported question bank in the file's shape (null: never imported). */
+  bank: Record<string, unknown> | null = null;
+  bankDownloads = 0;
   private nextSeq = 1;
 
   constructor(private readonly now: () => number = Date.now) {}
@@ -90,6 +94,31 @@ export class FakeServer {
           time_zone: s.timeZone,
           version: this.settings.version,
         });
+      },
+      getBankVersion: async () => {
+        this.check();
+        return typeof this.bank?.bankVersion === 'string' ? this.bank.bankVersion : null;
+      },
+      getBank: async () => {
+        this.check();
+        if (!this.bank) return null;
+        this.bankDownloads++;
+        // Like the real tables: one row per question/scenario, read back ordered by id.
+        const b = structuredClone(this.bank) as Record<string, unknown>;
+        const rows = (xs: unknown) =>
+          (xs as { id: string }[])
+            .map((data) => ({ id: data.id, data }))
+            .sort((x, y) => (x.id < y.id ? -1 : 1));
+        return assembleServerBank(
+          {
+            schema_version: b.schemaVersion,
+            bank_version: b.bankVersion,
+            areas: b.areas,
+            levels: b.levels,
+          },
+          rows(b.scenarios),
+          rows(b.questions),
+        );
       },
     };
   }
