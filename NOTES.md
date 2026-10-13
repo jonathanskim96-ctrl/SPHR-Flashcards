@@ -148,3 +148,7 @@ Mutation checks (2026-10-13; each made to the file, the tests run, the file rest
 | server time `15:00:00` not converted | backend.test settings rows |
 | app validator loosened (xp 4) | contract cases (app side) |
 | database accepts 7 fraction digits in `answeredAt` (0003 edited temporarily, restored, check-migrations OK) | contract test (database side) |
+
+## 2026-10-13: Phase 3 approved
+
+Owner approved Phase 3 in the same chat. Phase 4 starts in a new chat (Sonnet, HANDOFF §6).
