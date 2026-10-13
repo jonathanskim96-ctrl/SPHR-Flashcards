@@ -234,3 +234,8 @@ The planning session couldn't open these sites directly, so check them once:
    (for example about `SUPABASE_SERVICE_ROLE_KEY` or `web-push`), copy it to Claude. The
    reminder function was tested with the same Web Push library in Deno on the build
    machine, but not yet inside Supabase itself.
+5. After Part D and Part E, open the run's log in **Actions**. Both the keep-alive and the
+   import send the secret key the way Supabase's newer `sb_secret_…` keys are documented to
+   be sent (the same value as `apikey` and as the bearer token). This was tested against a
+   local stand-in, not against Supabase itself. If a run fails with HTTP 401 or 403, copy the
+   red error line to Claude.

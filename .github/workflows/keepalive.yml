@@ -1,0 +1,36 @@
+name: Keep Supabase awake
+
+# One small database write a day so the free Supabase project is never paused for
+# inactivity. Also runnable by hand (Actions -> Keep Supabase awake -> Run workflow).
+on:
+  schedule:
+    - cron: '17 15 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Call keepalive
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SECRET_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL or SUPABASE_SECRET_KEY is not set (SETUP A3/A4)"
+            exit 1
+          fi
+          case "$SUPABASE_URL" in https://*) ;; *) echo "::error::VITE_SUPABASE_URL must start with https://"; exit 1 ;; esac
+          status=$(curl --silent --show-error --output "$RUNNER_TEMP/reply.json" --write-out '%{http_code}' \
+            --request POST "${SUPABASE_URL%/}/rest/v1/rpc/keepalive" \
+            --header "apikey: $SUPABASE_SECRET_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SECRET_KEY" \
+            --header 'Content-Type: application/json' --data '{}')
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::keepalive failed with HTTP $status"
+            exit 1
+          fi
+          echo "keepalive OK (HTTP $status), rows in log: $(cat "$RUNNER_TEMP/reply.json")"

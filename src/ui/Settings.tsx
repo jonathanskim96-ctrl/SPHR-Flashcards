@@ -14,6 +14,7 @@ import type { PushDeps, RefreshResult } from '../data/push';
 import type { AuthApi } from './auth';
 import type { AppEnv } from './deps';
 import { ConfirmDialog } from './Dialog';
+import { lastExportText } from './exportAge';
 import { refreshProblem, ReminderMessage, timeLabel, useReminderSwitch } from './reminder';
 import { SyncStatusLine } from './SyncStatusLine';
 import { OfflineLine } from './UpdateBanner';
@@ -324,11 +325,7 @@ export function Settings({
       <section className="stack" aria-label="Backup">
         <h2>Backup</h2>
         <SyncStatusLine engine={session.engine} store={session.store} />
-        <p className="muted">
-          {study.lastExportAt
-            ? `Last exported ${new Date(study.lastExportAt).toLocaleDateString()}`
-            : 'Never exported'}
-        </p>
+        <p className="muted">{lastExportText(study.lastExportAt, env.now(), s.timeZone)}</p>
         <button type="button" className="btn secondary" onClick={() => void doExport()}>
           Export progress
         </button>

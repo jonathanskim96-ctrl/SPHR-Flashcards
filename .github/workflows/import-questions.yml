@@ -1,0 +1,44 @@
+name: Import questions
+
+# Manual only. Run it once with "apply" unticked (a preview: nothing is written), read the
+# summary, then run it again with "apply" ticked. Insert/update only; never deletes.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Tick to write to the database. Leave unticked for a preview.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-questions
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Validate the question bank (the job stops if this fails)
+        run: node scripts/validate-bank.mjs
+
+      - name: Import
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -o pipefail
+          node scripts/import-bank.mjs | tee -a "$GITHUB_STEP_SUMMARY"

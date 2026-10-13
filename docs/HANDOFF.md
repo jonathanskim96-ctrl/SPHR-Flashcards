@@ -4,14 +4,41 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 7 (daily reminder) approved** by the owner (2026-10-13) on branch
-  `ccr-67c10ae0-ubtsvr`. Phases 0–7 approved; nothing merged to `main`. **Next: Phase 8**
-  (backups, keep-alive, question import), in a new chat (see §6).
+- **Phase 8 (backups, keep-alive, question import) built** on branch `ccr-67c10ae0-ubtsvr`,
+  **waiting for the owner's approval**. Phases 0–7 approved; nothing merged to `main`.
+  **Next: Phase 9** (end-to-end, reviews, go-live), in a new chat (see §6) after approval.
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
   Part B3 runs them later). Until then the real app shows "The app is not configured" (the
   Supabase address and key are repo variables set in SETUP); everything was tested against
   a pretend server. **The reminder function is not deployed** (SETUP B7–B9 do that), and
   the VAPID key pair was given to the owner in chat only (never in a file).
+- Phase 8 contents: `.github/workflows/keepalive.yml` (daily 15:17 UTC + manual button,
+  `permissions: {}`, one POST to `rpc/keepalive` with the secret passed through `env:`, fails
+  on any non-2xx, URL from the repo variable `VITE_SUPABASE_URL`);
+  `.github/workflows/import-questions.yml` (manual only; `apply` input, default off;
+  `contents: read`; checks out `main`; the validator runs first and stops the job; then
+  `scripts/import-bank.mjs`, whose Markdown summary goes to the job summary: first line
+  **"PREVIEW ONLY: nothing was written"**, **"APPLIED: N new, M changed"** or **"FAILED: nothing
+  was written"**, then a table of new / changed / unchanged / newly retired / errors);
+  `scripts/import-bank.mjs` (one call = one transaction, since the database function refuses a
+  question that is missing from the payload, so chunking would not work; writes only when
+  `APPLY` is exactly `true`; the address must be https, never prints the key). Settings now
+  says **"Last export: today / yesterday / N days ago"** (calendar days in her time zone;
+  `src/ui/exportAge.ts`); export, import-with-preview and sign-out guard were already built in
+  Phase 5. Tests: `scripts/import-bank.test.mjs` (pretend server), `scripts/workflows.test.mjs`
+  (no `${{ }}` inside `run:` in any workflow, permissions, import manual-only and
+  validator-before-import, keep-alive schedule, the secret used only by those two workflows;
+  runs `actionlint` too when installed, which it is **not** here), `supabase/tests/contract/
+  import.test.ts` (the real script, as the workflow runs it, against the real `import_bank`
+  in local Postgres through a stand-in web address: fake bank preview → apply → re-run no-op;
+  a second version with new / edited / retired questions; refusals of a deleted question, a
+  change without a raised revision, an older version, a wrong key; the real bank read-only:
+  400 new, apply, re-run no-op; each call is rolled back), `e2e/newQuestions.spec.ts` (the
+  new-questions flow on production builds: v1 loaded and a card answered → v2 "deployed" with
+  2 new, 1 edited, 1 retired → counts right, the two new cards offered, the edited card not
+  offered again today (state kept), the retired card gone → the import simulated: no
+  duplicates, same counts, nothing re-downloaded), `exportAge.test.ts`. 6 mutation checks in
+  NOTES.md. No new dependencies.
 - Phase 7 contents: **server** `supabase/functions/send-reminders/index.ts` (one file, pasted
   into the dashboard in SETUP B8): checks `x-cron-secret` (401 otherwise; 500 if
   `CRON_SECRET` is unset), reads `settings` rows with the reminder on and each account's
@@ -213,6 +240,7 @@ Decided in the planning session (2026-10-13):
 | Phase 5 screen defaults | **All five kept as built** (2026-10-13): remembered area/tier choice with the last one unswitchable; ✕ quits with no question; one Save button for pace fields, reminder saves at once and asks before turning off; one-line hints on Ordering and Matching; a wrong choice stays highlighted green (the owner chose "keep" over the recommended dimming; revisit only if asked) |
 | Phase 6 | **Approved** 2026-10-13 (start of the Phase 7 chat) |
 | Phase 7 | **Approved** 2026-10-13 |
+| Phase 8 | Built 2026-10-13, awaiting approval; no new product decisions were needed (all behaviour was decided in the plan) |
 | Late reminder | **Up to 1 hour late, once**, when the run at her chosen time fails or she picks a time that has just passed (the alternative, skipping that day, was declined). `CATCH_UP_MS` in `supabase/functions/send-reminders/index.ts` (decided 2026-10-13, Phase 7) |
 | Phase 6 choices | **App icon:** white "SPHR" letters on the app's green. **Safari (not installed):** the "Add to Home Screen" steps card appears at the top of Settings only, in place of the reminder switch; Home is unchanged (decided 2026-10-13) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
@@ -375,6 +403,18 @@ changing):
    and real delivery to an iPhone. SETUP Part G step 4 and INSTALL §5 check them.
 19. (Resolved 2026-10-13) Late reminder: the owner kept "up to 1 hour late, once" (§2).
 
+17d. Phase 8 notes (no money/safety impact; the owner can change any):
+   (a) The import is one request with the whole bank (about 600 KB), not chunks: the database
+   function checks that nothing disappeared, so it must see the whole bank at once.
+   (b) **Not verified against real Supabase:** that the new `sb_secret_…` key works as both
+   `apikey` and bearer token for `rpc/keepalive` and `rpc/import_bank` (tested against a local
+   stand-in only); SETUP Part G step 5 checks it on the first run. (c) The keep-alive writes
+   one row a day to `keepalive_log` (about 365 a year; tiny). (d) Applying an import is the
+   owner's approval for that one write (CLAUDE.md §0): preview first, then tick **apply**.
+   (e) GitHub only runs scheduled workflows from the default branch, so the keep-alive starts
+   after the merge to `main`; use the **Run workflow** button until then. (f) "Last export" is
+   about the file made on this phone; it does not know about exports from another phone.
+
 **Unverified facts (confirm during SETUP)**
 17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
@@ -412,6 +452,7 @@ npm run build
 ./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, App↔DB contract (answers, settings, bank)
 npm run e2e                                # Playwright, iPhone 13 Pro Max profile; builds dist-e2e itself (pretend Supabase address)
 npm run test:functions                     # (part of npm test) the reminder Edge Function in Deno; needs openssl
+# also in npm test: scripts/workflows.test.mjs and scripts/import-bank.test.mjs; run.sh runs supabase/tests/contract/import.test.ts
 ```
 `npm test` runs vitest (domain, data layer and bank loader with fake IndexedDB and a fake server, UI) with
 100% coverage enforced on `src/domain` and `src/data`, and the Node guardrail tests (`scripts/*.test.mjs`: validator

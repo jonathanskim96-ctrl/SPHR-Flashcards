@@ -192,6 +192,7 @@ describe('Settings: backup status, export and import', () => {
     expect(out).toMatchObject({ format: 'sphr-flashcards-progress', version: 1, attempts: [] });
     expect(out.settings.examDate).toBe('2026-12-15');
     await waitFor(() => expect(screen.queryByText('Never exported')).toBeNull());
+    expect(screen.getByText('Last export: today')).toBeTruthy();
   });
 
   it('says so when the export fails', async () => {

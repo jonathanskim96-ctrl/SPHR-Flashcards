@@ -316,3 +316,34 @@ default 1-second wait for the "Imported 36 new answers" message ran out on the b
 runner. Not reproduced locally (passes alone, in the full suite, and with the suite pinned to
 one CPU core). Fix: that wait (and the next one) now allows 10 seconds; the assertions are
 unchanged. No app code changed.
+
+## 2026-10-13: Phase 8 (backups, keep-alive, question import)
+
+Built: `keepalive.yml`, `import-questions.yml`, `scripts/import-bank.mjs`, "Last export: N days
+ago" in Settings. The export/import of progress itself was Phase 5 work.
+
+- The branch to push to was named by the owner (`ccr-67c10ae0-ubtsvr`); the session's own
+  suggested branch was the same history, so nothing was lost.
+- The database test for the script needs the bank tables empty, but earlier SQL test files
+  leave a fake bank behind (committed). Like the contract test, each call therefore clears the
+  bank tables inside its own transaction (with the test-only override) and rolls back; earlier
+  "applied" calls are replayed first, so a later call sees them. The database is left as found.
+- The new-questions e2e test builds the app twice (v1 and v2 of the fake bank) with
+  `build-bank.mjs` → `public/bank.json`, then restores the generated `public/bank.json` to the
+  sample bank. New fake questions need their own worksheet name and different answer letters,
+  or the validator's "run of 3 same letters" rule rejects the bank.
+- Checks run: validate-bank, check-migrations, typecheck, lint, `npm test` (690 vitest, 48
+  node, 19 Deno), build, `run.sh` (8 SQL files, contract tests), `npm run e2e` (20).
+  actionlint is not installed here, so the YAML was checked by `workflows.test.mjs` only.
+
+Mutation checks (each made to the file, tests run, file restored):
+
+| Mutation | Caught by |
+|---|---|
+| `p_apply: !!apply` (a string would count as yes) | import-bank.test |
+| keep-alive accepts any status below 900 | workflows.test |
+| `${{ inputs.apply }}` inside a `run:` | workflows.test |
+| import `apply` defaults to true | workflows.test |
+| clamp removed in "last export" (negative days) | exportAge.test |
+| edited card's choice text changed (state should reset) | e2e/newQuestions (lesson offered the old card again) |
+
