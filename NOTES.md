@@ -106,3 +106,45 @@ Mutation checks (2026-10-13; each change made to a copy, the full DB suite run, 
 Owner approved Phase 2 and asked to switch to a new conversation (Opus) for Phase 3, and
 that every handoff tells them to open a new chat. Added the rule to CLAUDE.md and the
 template plus a model-per-phase table to HANDOFF.md §6.
+
+## 2026-10-13: Phase 3 (data layer and offline sync)
+
+Built in a new chat on `ccr-67c10ae0-ubtsvr`, as BUILD_PLAN Phase 3 describes. No product
+decisions were needed; implementation choices are in HANDOFF §3 items 13–15.
+
+- `src/data/`: IndexedDB per user (`idb`), `guardedWrite` (validate → answer + outbox in one
+  transaction), `SyncEngine` (ordered flush ≤ 200, removal by outbox key after the server
+  confirms, paged pull by `seq`, settings with base version, notices), session open /
+  persistent storage / guarded sign-out, the Supabase adapter (supabase-js, PKCE), and the
+  Settings status line component.
+- Tests: fake server mirroring `apply_changes`; offline queueing, batching (450 → 200/200/50),
+  a lost reply then retry (duplicates only), an answer made during a flush and during a lost
+  reply, rejection reported and dropped, pull pagination (1,234 rows → 3 pages; an exactly
+  full page), the reload-race guard (attempts and settings), settings conflict between two
+  devices, two devices answering offline (same card, same day, different results → identical
+  replay and XP, union count), sync triggers and debounce, sign-out refusal and wipe.
+- App↔DB contract test (in `run.sh`): the app's own code against the real functions. It
+  found two real mismatches while being written, both fixed in the app's validator:
+  Intl accepts `utc`, `america/los_angeles` and `+05:00` as time zones, the database does
+  not. A first fix (require the browser's exact canonical spelling) was dropped because
+  browsers disagree on canonical names (`Asia/Calcutta` vs `Asia/Kolkata`); the rule is now
+  "IANA spelling + Intl knows it". Old alias names are marked server-dependent (this
+  machine's PostgreSQL lacks `US/Pacific`; Supabase unverified).
+- Bug caught by the tests while building: sign-out deleted the database from the default
+  IndexedDB factory instead of the session's (the session now carries its factory).
+
+Mutation checks (2026-10-13; each made to the file, the tests run, the file restored):
+
+| Mutation | Caught by |
+|---|---|
+| outbox cleared wholesale instead of by key | store.test "never a queued answer" |
+| batch cap 200 → 201 | supabaseBackend.test "refuses more than 200" |
+| pull race guard removed | store.test "refuses a pulled page" |
+| settings always sent with base version null | sync.test "later saves build on it" |
+| sign-out guard removed | session.test "is refused while answers are waiting" |
+| pulled copy overwrites the phone's answer | store.test "never replaces" |
+| pull stops after the first page | sync.test "pages of 500" |
+| conflict message not shown | sync.test two-device conflict |
+| server time `15:00:00` not converted | backend.test settings rows |
+| app validator loosened (xp 4) | contract cases (app side) |
+| database accepts 7 fraction digits in `answeredAt` (0003 edited temporarily, restored, check-migrations OK) | contract test (database side) |

@@ -4,12 +4,36 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-13)
 
-- **Phase 2 (database) is built and approved** (2026-10-13) on branch
-  `ccr-67c10ae0-ubtsvr`. **Next: Phase 3**, in a new chat (see §6). Phases 0–2 approved;
-  nothing merged to `main`.
+- **Phase 3 (offline saving and syncing) is built, waiting for the owner's review**
+  (2026-10-13) on branch `ccr-67c10ae0-ubtsvr`. Phases 0–2 approved; nothing merged to
+  `main`. **Next: Phase 4**, in a new chat (see §6), only after the owner's OK.
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
-  Part B3 runs them later). The app still shows a placeholder screen.
-- Phase 2 contents: `supabase/migrations/0001_init.sql` (tables + constraints),
+  Part B3 runs them later). The app still shows a placeholder screen: Phase 3 is the data
+  layer under the screens, which Phase 5 builds.
+- Phase 3 contents (`src/data/`): `db.ts` (IndexedDB via `idb`, one database per user id:
+  stores `bank`, `attempts`, `outbox`, `settings`, `meta`), `store.ts` (`LocalStore`;
+  `guardedWrite` validates with the domain validator and writes the answer + outbox entry in
+  one transaction; a write counter discards a pull that raced a local write), `sync.ts`
+  (`SyncEngine`: flush in order, ≤ 200 per call, remove outbox items by key only after the
+  server confirms; pull `seq > cursor` in pages of 500, then settings; runs on start, online,
+  return to foreground, 2 s after an answer, every 5 min; status text; notices for
+  rejections and settings conflicts), `session.ts` (open a session, first-run settings,
+  `navigator.storage.persist()`, sign-out refused while anything waits to back up, then
+  wipes the local database), `backend.ts` (server ↔ app conversions), `supabaseBackend.ts`
+  (supabase-js: `rpc/apply_changes`, `attempts` and `settings` selects),
+  `supabaseClient.ts` (PKCE, publishable key only), `answer.ts` (`buildAttempt`).
+  `src/ui/SyncStatusLine.tsx` (the Settings status line; Phase 5 places it). Domain:
+  `validateSubscription` added; `isTimeZone` tightened (see §3 item 15).
+  Tests: unit tests with an in-memory fake server (`tests/fakeServer.ts`), two-device and
+  settings-conflict tests, the Supabase adapter against a fake `fetch`, and the **App↔DB
+  contract test** (`supabase/tests/60_contract.test.sh` → `supabase/tests/contract/`) that
+  runs the app's own code against the real functions in local Postgres: round trips of all 6
+  answer types, settings and a push subscription, plus one shared boundary table
+  (`tests/contract/cases.ts`, ~150 values) that the app validator and the database must
+  agree on. Coverage of `src/domain` **and** `src/data` is 100% (enforced). 11 mutation
+  checks recorded in NOTES.md, all caught. New dependencies: `idb`, `@supabase/supabase-js`;
+  dev: `fake-indexeddb` (`npm audit`: 0 vulnerabilities).
+- Phase 2 (database) approved 2026-10-13. Contents: `supabase/migrations/0001_init.sql` (tables + constraints),
   `0002_guardrails.sql` (safety log, append-only/no-delete/no-truncate triggers, mass-delete
   cap, grants, forced RLS), `0003_rpc.sql` (`apply_changes`, `save_push_subscription`,
   `disable_push_subscription`, `import_bank`, `keepalive`, validators), all three locked in
@@ -158,11 +182,34 @@ changing):
 12. CI installs Playwright's Chromium on the GitHub runner (`npx playwright install`); the
    cloud session never does (it uses the pre-installed one).
 
+13. Phase 3 implementation notes (no product trade-off; tell the owner if one matters):
+   (a) An answer the server refuses is reported ("1 answer could not be saved: reason") and
+   dropped from the outbox, but **stays on her phone** (CLAUDE.md: no code path deletes
+   answers). It cannot happen in practice: the app's validator and the database agree on
+   every boundary (contract test). (b) Settings changes are not stored in the outbox; the
+   outbox only notes that settings changed, and the latest local settings are sent with the
+   server version they were based on. On a conflict the server copy wins and **every** queued
+   settings change is dropped (also one made during that sync). Untouched first-run
+   defaults give way to a server copy without a message. (c) Every timestamp is stored in one
+   spelling (`…T20:00:00.000Z`), so a phone's copy and the server's copy of an answer are
+   identical. (d) Sign-out tries one last sync first; it is refused while answers *or* a
+   settings change wait to back up. (e) The status-line hook (`useSyncStatus`) has no test
+   yet (no browser DOM in unit tests); Phase 5 covers it in the screen tests.
+14. `supabase/tests/run.sh` now also runs the contract test with vitest, so it needs
+   `npm ci` first (CI already does that).
+15. Time zones: Intl accepts spellings the database's zone list doesn't (`utc`,
+   `america/los_angeles`, `+05:00`), so the validator now also requires IANA spelling (each
+   part starts with a capital). **Old alias names** (`US/Pacific`, `Asia/Calcutta`) are
+   accepted by the app, but this machine's PostgreSQL doesn't know them and Supabase's list
+   is unverified; Chrome reports some of them (e.g. `Asia/Calcutta` in India). Every US zone
+   an iPhone reports is in the contract test and accepted by both. If a server ever refuses
+   a zone, she sees "Settings could not be saved: timeZone …" in Settings.
+
 **Unverified facts (confirm during SETUP)**
-13. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
+16. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
    SETUP Part G lists what to check on the live dashboard.
-14. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
+17. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
     emails first, and re-enabling is one click (SETUP Part D). Any commit resets the clock.
 
 ## 4. Platform facts this plan relies on
@@ -192,10 +239,11 @@ node scripts/validate-bank.mjs tests/fixtures/sample-bank.json
 node scripts/check-migrations.mjs
 npm run typecheck && npm run lint && npm test
 npm run build
-./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, contract
+./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, App↔DB contract
 npm run e2e                                # Playwright, iPhone 13 Pro Max profile
 ```
-`npm test` runs vitest and the Node guardrail tests (`scripts/*.test.mjs`: validator
+`npm test` runs vitest (domain, data layer with fake IndexedDB and a fake server, UI) with
+100% coverage enforced on `src/domain` and `src/data`, and the Node guardrail tests (`scripts/*.test.mjs`: validator
 self-test on `tests/fixtures/bad-banks/`, `--previous`, check-migrations, build-bank).
 `run.sh` needs a local PostgreSQL (`initdb`); as root it runs the server as the `postgres`
 OS user. It applies the migrations as `migrator`, a non-superuser standing in for Supabase's

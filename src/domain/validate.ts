@@ -183,3 +183,39 @@ export function validateAttempt(v: unknown, now: number): Result<Attempt> {
     value: Object.fromEntries(ATTEMPT_KEYS.map((k) => [k, v[k]])) as unknown as Attempt,
   };
 }
+
+export interface PushSubscriptionKeys {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+const KEY_RE = /^[A-Za-z0-9_=-]+$/;
+const MAX_ENDPOINT_BYTES = 1024;
+
+/** A browser push subscription as saved by `save_push_subscription` (mirrors the table checks). */
+export function validateSubscription(v: unknown): Result<PushSubscriptionKeys> {
+  if (!isObj(v)) return { ok: false, errors: ['subscription must be an object'] };
+  const errors: string[] = [];
+  const { endpoint, p256dh, auth } = v;
+  if (
+    typeof endpoint !== 'string' ||
+    !endpoint.startsWith('https://') ||
+    unstorable(endpoint) ||
+    new TextEncoder().encode(endpoint).length > MAX_ENDPOINT_BYTES
+  )
+    errors.push(`endpoint must be an https address of at most ${MAX_ENDPOINT_BYTES} bytes`);
+  if (
+    typeof p256dh !== 'string' ||
+    !KEY_RE.test(p256dh) ||
+    p256dh.length < 16 ||
+    p256dh.length > 255
+  )
+    errors.push('p256dh key is malformed');
+  if (typeof auth !== 'string' || !KEY_RE.test(auth) || auth.length < 8 || auth.length > 255)
+    errors.push('auth key is malformed');
+  for (const k of Object.keys(v))
+    if (!['endpoint', 'p256dh', 'auth'].includes(k)) errors.push(`unknown field ${k}`);
+  if (errors.length) return { ok: false, errors };
+  return { ok: true, value: { endpoint, p256dh, auth } as PushSubscriptionKeys };
+}

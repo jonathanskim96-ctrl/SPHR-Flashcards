@@ -26,6 +26,12 @@ describe('dates', () => {
   it('isTimeZone', () => {
     expect(isTimeZone('America/Los_Angeles')).toBe(true);
     expect(isTimeZone('UTC')).toBe(true);
+    // Aliases are real zones (browsers differ on which spelling they report).
+    for (const good of ['US/Pacific', 'Asia/Kolkata', 'Asia/Calcutta', 'Etc/GMT+5', 'EST5EDT'])
+      expect(isTimeZone(good)).toBe(true);
+    // Spellings Intl accepts but the database's zone list does not (Phase 3 contract test).
+    for (const bad of ['america/los_angeles', 'utc', '+05:00', '-08:00', 'America//Denver'])
+      expect(isTimeZone(bad)).toBe(false);
     for (const bad of ['Mars/Olympus', '', 'x'.repeat(65), 5, null])
       expect(isTimeZone(bad)).toBe(false);
   });

@@ -22,8 +22,17 @@ export function addDays(date: LocalDate, days: number): LocalDate {
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
+/** IANA spelling: `America/Los_Angeles`, `Etc/GMT+5`, `UTC`; each part starts with a capital. */
+const ZONE_RE = /^[A-Z][A-Za-z0-9_+-]*(\/[A-Z][A-Za-z0-9_+-]*)*$/;
+
+/**
+ * A real IANA time zone name. Intl alone is too lenient for the database's zone list: it
+ * also takes `america/los_angeles`, `utc` and offsets such as `+05:00`, so the name must
+ * also be spelled the IANA way. Aliases (`US/Pacific`, `Asia/Kolkata`) are fine: browsers
+ * differ on which alias they report, and the database knows them all.
+ */
 export function isTimeZone(tz: unknown): tz is string {
-  if (typeof tz !== 'string' || tz.length === 0 || tz.length > 64) return false;
+  if (typeof tz !== 'string' || tz.length > 64 || !ZONE_RE.test(tz)) return false;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: tz });
     return true;

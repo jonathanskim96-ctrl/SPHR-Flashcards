@@ -56,7 +56,12 @@ export default tseslint.config(
     rules: reactHooks.configs.recommended.rules,
   },
   {
-    files: ['scripts/**/*.mjs', '*.config.{js,ts}', 'e2e/**/*.ts'],
+    files: [
+      'scripts/**/*.mjs',
+      '*.config.{js,ts}',
+      'e2e/**/*.ts',
+      'supabase/tests/contract/**/*.ts',
+    ],
     languageOptions: { globals: globals.node },
   },
 );

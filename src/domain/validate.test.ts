@@ -7,6 +7,7 @@ import {
   validateAttempt,
   validateResponse,
   validateSettings,
+  validateSubscription,
 } from './validate';
 import { at, attempt, fakeBank, q, TZ } from '../../tests/helpers';
 
@@ -186,5 +187,41 @@ describe('validateAttempt', () => {
       errors: ['unknown field user_id'],
     });
     expect(validateAttempt([], NOW)).toEqual({ ok: false, errors: ['attempt must be an object'] });
+  });
+});
+
+describe('validateSubscription', () => {
+  const good = {
+    endpoint: 'https://push.example.test/abc',
+    p256dh: 'A'.repeat(16),
+    auth: 'b'.repeat(8),
+  };
+  it('accepts a well-formed subscription', () => {
+    expect(validateSubscription(good)).toEqual({ ok: true, value: good });
+    expect(validateSubscription({ ...good, p256dh: 'A-_='.repeat(63) + 'abc' }).ok).toBe(true);
+    expect(validateSubscription({ ...good, endpoint: 'https://' + 'x'.repeat(1016) }).ok).toBe(
+      true,
+    );
+  });
+  it('rejects every bound and wrong type', () => {
+    for (const bad of [
+      null,
+      [],
+      { ...good, endpoint: 'http://push.example.test/abc' },
+      { ...good, endpoint: 'https://' + 'x'.repeat(1017) },
+      { ...good, endpoint: 'https://é'.padEnd(1020, 'x') + 'éé' },
+      { ...good, endpoint: 'https://x\u0000' },
+      { ...good, endpoint: 5 },
+      { ...good, p256dh: 'A'.repeat(15) },
+      { ...good, p256dh: 'A'.repeat(256) },
+      { ...good, p256dh: 'A'.repeat(15) + '+' },
+      { ...good, p256dh: 'A'.repeat(16) + '\n' },
+      { ...good, auth: 'b'.repeat(7) },
+      { ...good, auth: 'b'.repeat(256) },
+      { ...good, auth: 'b'.repeat(8) + '/' },
+      { ...good, auth: undefined },
+      { ...good, extra: 1 },
+    ])
+      expect(validateSubscription(bad).ok, JSON.stringify(bad)).toBe(false);
   });
 });

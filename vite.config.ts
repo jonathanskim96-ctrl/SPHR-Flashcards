@@ -36,10 +36,11 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      include: ['src/domain/**/*.ts'],
-      exclude: ['src/domain/**/*.test.ts', 'src/domain/types.ts'],
+      include: ['src/domain/**/*.ts', 'src/data/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/domain/types.ts'],
       reporter: ['text-summary', 'text'],
-      // BUILD_PLAN Phase 1: 100% of the domain is covered by tests.
+      // BUILD_PLAN Phase 1: 100% of the domain is covered by tests. Phase 3 holds the data
+      // layer (storage and sync) to the same bar.
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
     },
   },
