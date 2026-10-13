@@ -50,6 +50,8 @@ Decided in the planning session (2026-10-13):
 | XP bonuses | **None** |
 | Mistakes deck | A card leaves after **2 correct answers in a row** (always on different days) |
 | GitHub | **Ruleset on `main`** blocking force-push and deletion |
+| Exam date | **December 15, 2026** (default in Settings; she can change it) |
+| Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
 Design choices made in planning (no product trade-off, but worth knowing):
 - **Progress is stored as an append-only answer history.** Card schedules, XP and
@@ -74,29 +76,27 @@ changing):
 ## 3. Open items
 
 **Needs the owner's input**
-1. **Exam date.** Placeholder default is 2026-12-01. Tell the build session her actual
-   exam date (she can also change it in Settings). Scheduling never sets a card due after it.
-2. Michelle's sign-in email, needed for SETUP step B6. Give it to Claude only if you want
+1. Michelle's sign-in email, needed for SETUP step B6. Give it to Claude only if you want
    it written into the docs; otherwise just use it in the dashboard.
 
 **Content (for the owner's question-writing project; no app action needed)**
-3. 102 free-response worksheet items were rewritten as multiple choice.
-4. Practice-test questions 70–85: in 10 items two choices were swapped, so the app's
+2. 102 free-response worksheet items were rewritten as multiple choice.
+3. Practice-test questions 70–85: in 10 items two choices were swapped, so the app's
    answer letters differ from the Word answer key (each item's `source.note` says so).
    The app shows no letters, so this is invisible to her.
-5. In the practice-test items the correct choice is the longest choice 57 of 120 times
+4. In the practice-test items the correct choice is the longest choice 57 of 120 times
    (the validator reports 76 of 222 across all MC). Shuffling doesn't fix this cue.
-6. `trw1-q01` (compa-ratio 0.85): typing "85%" is graded **wrong** under the decided numeric
+5. `trw1-q01` (compa-ratio 0.85): typing "85%" is graded **wrong** under the decided numeric
    rule. Suggest changing the stem or adding the unit; that's a content edit with a revision bump.
-7. `hiw1-q19` (unit °F): typing "87°" (degree sign without F) is graded wrong. Minor.
-8. If a future text answer contains an apostrophe, the iPhone keyboard types a curly ’
+6. `hiw1-q19` (unit °F): typing "87°" (degree sign without F) is graded wrong. Minor.
+7. If a future text answer contains an apostrophe, the iPhone keyboard types a curly ’
    that won't match a straight '. No current answer has one. Decide then whether to forgive it.
 
 **Unverified facts (confirm during SETUP)**
-9. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
+8. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
    SETUP Part G lists what to check on the live dashboard.
-10. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
+9. GitHub turns off scheduled workflows in a public repo after 60 days with no commits; it
     emails first, and re-enabling is one click (SETUP Part D). Any commit resets the clock.
 
 ## 4. Platform facts this plan relies on

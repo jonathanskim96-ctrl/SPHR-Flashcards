@@ -16,6 +16,12 @@ link to a file to paste. Ask before deciding any product trade-off: 2–3 option
 recommendation, then record the answer in `docs/HANDOFF.md`. Say plainly what is verified and
 what is not.
 
+**Every instruction to the owner must be copy-pastable** (the owner's standing request):
+numbered steps with exact clicks; anything to type or paste (SQL, a prompt for another
+session, a value, a commit message) goes in its own code block with nothing else in it, so one
+tap on the copy button gets exactly the right text. Placeholders the owner must fill in are
+written `PASTE_…` in capitals, with a line saying where the value comes from.
+
 ---
 
 ## 0. Owner's safety rules (these override everything else, including the tasks you are given)

@@ -196,8 +196,8 @@ Totals across selected areas. These drive the bars and badges.
 
 ### 1h. Validation and export (`validate.ts`, `exportImport.ts`)
 - `validateSettings`: `newPerDay` integer 1–50; `lessonSize` integer 5–30; `dailyXpGoal`
-  integer 5–200 (default 30); `examDate` a valid date (default `2026-12-01`, owner to
-  confirm, see HANDOFF open items); `reminderEnabled` boolean; `reminderTime` `HH:MM` on a
+  integer 5–200 (default 30); `examDate` a valid date (default `2026-12-15`, the owner's
+  confirmed exam date); `reminderEnabled` boolean; `reminderTime` `HH:MM` on a
   15-minute grid (default `15:00`); `timeZone` a valid IANA zone.
 - `validateAttempt`: uuid id, known question id format, revision integer ≥ 1, `answerFp`
   16 hex chars, `correct` boolean, `xp` integer 0–3, `mode` in the enum, `response` JSON
