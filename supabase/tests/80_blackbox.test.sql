@@ -24,7 +24,7 @@ declare r jsonb;
 begin
   r := public.apply_changes(jsonb_build_array(tests.att(4001)), tests.settings(), null);
   assert r ->> 'inserted' = '1', r::text;
-  perform public.save_push_subscription('https://push.example.test/victim', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
+  perform public.save_push_subscription('https://web.push.apple.com/victim', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
 end $$;
 
 -- User C (the attacker).
@@ -50,11 +50,11 @@ begin
 
   -- 4. C cannot take over or switch off D's reminder subscription by its address.
   begin
-    perform public.save_push_subscription('https://push.example.test/victim', 'BPkbbbbbbbbbbbbbbbbb', 'authsecret2');
+    perform public.save_push_subscription('https://web.push.apple.com/victim', 'BPkbbbbbbbbbbbbbbbbb', 'authsecret2');
   exception when others then
     null; -- refused: fine
   end;
-  perform public.disable_push_subscription('https://push.example.test/victim');
+  perform public.disable_push_subscription('https://web.push.apple.com/victim');
 
   -- 5. Answers with oversized or deeply nested responses are refused one by one.
   r := public.apply_changes(jsonb_build_array(
@@ -76,7 +76,7 @@ begin
           where id = (tests.att(4001) ->> 'id')::uuid), 'D''s answer changed';
   assert (select lesson_size from public.settings where user_id = '00000000-0000-4000-8000-0000000000f1') = 10,
     'D''s settings changed';
-  select * into s from public.push_subscriptions where endpoint = 'https://push.example.test/victim';
+  select * into s from public.push_subscriptions where endpoint = 'https://web.push.apple.com/victim';
   assert s.user_id = '00000000-0000-4000-8000-0000000000f1', 'C took over D''s subscription';
   assert s.disabled_at is null, 'C switched off D''s reminder';
   assert s.p256dh = 'BPkaaaaaaaaaaaaaaaaa', 'C changed D''s subscription keys';
@@ -92,8 +92,8 @@ begin
     perform tests.expect_error(format('select * from public.%I', t), '%permission denied%');
   end loop;
   perform tests.expect_error('select public.apply_changes(''[]''::jsonb)', '%permission denied%');
-  perform tests.expect_error($q$select public.save_push_subscription('https://push.example.test/a', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1')$q$, '%permission denied%');
-  perform tests.expect_error($q$select public.disable_push_subscription('https://push.example.test/a')$q$, '%permission denied%');
+  perform tests.expect_error($q$select public.save_push_subscription('https://web.push.apple.com/a', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1')$q$, '%permission denied%');
+  perform tests.expect_error($q$select public.disable_push_subscription('https://web.push.apple.com/a')$q$, '%permission denied%');
   perform tests.expect_error('select public.import_bank(''{}''::jsonb, false)', '%permission denied%');
   perform tests.expect_error('select public.keepalive()', '%permission denied%');
 end $$;

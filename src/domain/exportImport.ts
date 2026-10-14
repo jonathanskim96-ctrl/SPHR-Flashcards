@@ -1,6 +1,8 @@
 // Progress export file and import preview (BUILD_PLAN 1h). Import is a merge: it adds
 // answers that are not already present and never removes anything. Settings are restored
 // only when the user ticks "also restore settings".
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { validateAttempt, validateSettings } from './validate';
 import type { Attempt, Settings } from './types';
 
@@ -14,8 +16,18 @@ export interface ExportFile {
   version: typeof EXPORT_VERSION;
   exportedAt: string;
   bankVersion: string;
+  /**
+   * A short fingerprint of the account the file came from (audit L4), so an import into a
+   * different account is flagged. Not the account id itself. Files from before have none.
+   */
+  account?: string;
   attempts: Attempt[];
   settings: Settings;
+}
+
+/** The account fingerprint written into exports: 16 hex digits of a SHA-256 of the user id. */
+export function accountFingerprint(userId: string): string {
+  return bytesToHex(sha256(utf8ToBytes(`sphr-flashcards-account:${userId}`))).slice(0, 16);
 }
 
 export function buildExport(input: {
@@ -23,12 +35,14 @@ export function buildExport(input: {
   settings: Settings;
   bankVersion: string;
   now: Date;
+  userId: string;
 }): ExportFile {
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt: input.now.toISOString(),
     bankVersion: input.bankVersion,
+    account: accountFingerprint(input.userId),
     attempts: [...input.attempts],
     settings: input.settings,
   };
@@ -49,6 +63,17 @@ export interface ImportPreview {
   /** The file's settings, if valid (applied only when the user asks). */
   settings: Settings | null;
   settingsError: string | null;
+  /** The file says it came from a different account (audit L4). */
+  otherAccount: boolean;
+  /** How many of the answers to add are for questions not in the current bank (audit L4). */
+  unknownQuestions: number;
+}
+
+/** What the preview compares the file with: this account, and the questions it knows. */
+export interface ImportContext {
+  userId: string;
+  /** null while the bank is not loaded yet (then nothing is counted as unknown). */
+  questionIds: ReadonlySet<string> | null;
 }
 
 export type ParseResult = { ok: true; preview: ImportPreview } | { ok: false; error: string };
@@ -62,6 +87,7 @@ export function previewImport(
   text: string,
   existing: readonly Attempt[],
   now: number,
+  context: ImportContext,
 ): ParseResult {
   if (new TextEncoder().encode(text).length > MAX_IMPORT_BYTES)
     return { ok: false, error: 'The file is too large to be a progress export.' };
@@ -112,6 +138,11 @@ export function previewImport(
       rejected,
       settings: s.ok ? s.value : null,
       settingsError: s.ok ? null : s.errors.join('; '),
+      otherAccount:
+        file.account !== undefined && file.account !== accountFingerprint(context.userId),
+      unknownQuestions: context.questionIds
+        ? added.filter((a) => !context.questionIds!.has(a.questionId)).length
+        : 0,
     },
   };
 }

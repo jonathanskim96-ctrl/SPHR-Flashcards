@@ -10,7 +10,7 @@ import {
   USER,
 } from '../../tests/dataHelpers';
 import { rawSample, TZ } from '../../tests/helpers';
-import { openUserDb } from './db';
+import { deleteUserDb, openUserDb } from './db';
 import {
   ensureSettings,
   openSession,
@@ -210,20 +210,97 @@ describe('signOut', () => {
     s.store.close();
   });
 
-  it('reports an auth failure and keeps the local data', async () => {
-    const { s } = await withPending();
+  it('an account sign-out that fails after the data was removed says so (audit L1)', async () => {
+    const { s, factory } = await withPending();
     const r = await signOut(s, { signOut: async () => ({ error: { message: 'network down' } }) });
-    expect(r).toEqual({ ok: false, reason: 'error', error: 'Sign-out failed: network down' });
-    expect(await s.store.settingsRecord()).toBeDefined();
-    const r2 = await signOut(s, {
+    expect(r).toMatchObject({ ok: false, reason: 'error' });
+    expect(r.ok === false && r.reason === 'error' && r.error).toMatch(
+      /all backed up .* signing out did not finish \(network down\)/,
+    );
+    expect(await factory.databases()).toEqual([]); // removed first: everything was backed up
+    const s2 = (await withPending()).s;
+    const r2 = await signOut(s2, {
       signOut: async () => {
         throw new Error('boom');
       },
     });
-    expect(r2).toEqual({ ok: false, reason: 'error', error: 'Sign-out failed: boom' });
-    s.store.close();
+    expect(r2.ok === false && r2.reason === 'error' && r2.error).toMatch(/\(boom\)/);
   });
 
+  it('a second tab closes its data at once when another signs out, so nothing is lost (audit L1)', async () => {
+    const { s, factory } = await withPending();
+    let closedB = 0;
+    const tabB = new LocalStore(await openUserDb(USER, factory, () => closedB++));
+    const auth = { signOut: vi.fn(async () => ({ error: null })) };
+    expect(await signOut(s, auth)).toEqual({ ok: true });
+    expect(closedB).toBe(1);
+    expect(auth.signOut).toHaveBeenCalledOnce();
+    expect(await factory.databases()).toEqual([]);
+    // Tab B can no longer save into the removed data; it says so instead.
+    const clock = new Clock();
+    const a = await (await device(new FakeServer(), clock)).answer('fake1-q01', RIGHT);
+    const w = await tabB.guardedWrite({ kind: 'attempt', attempt: a });
+    expect(w.ok).toBe(false);
+  });
+
+  it('an older open copy that does not close: sign-out waits for it, then finishes (audit L1)', async () => {
+    const { s, factory } = await withPending();
+    // An older copy of the app (before audit L1) keeps its connection open.
+    const old = await new Promise<IDBDatabase>((resolve) => {
+      const req = factory.open(`sphr-${USER}`, 1);
+      req.onsuccess = () => resolve(req.result);
+    });
+    const onWaiting = vi.fn();
+    const auth = { signOut: vi.fn(async () => ({ error: null })) };
+    const done = signOut(s, auth, onWaiting);
+    await vi.waitFor(() => expect(onWaiting).toHaveBeenCalled());
+    expect(auth.signOut).not.toHaveBeenCalled();
+    old.close();
+    expect(await done).toEqual({ ok: true });
+    expect(auth.signOut).toHaveBeenCalledOnce();
+  });
+
+  it('signed out in another tab while this copy is still opening: opening fails (audit L1)', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    const factory = new IDBFactory();
+    const backend = server.backend();
+    const opening = openSession({
+      userId: USER,
+      backend: {
+        ...backend,
+        getSettings: async () => {
+          await deleteUserDb(USER, factory); // the other tab's sign-out
+          return null;
+        },
+      },
+      factory,
+      env: testEnv(clock).env,
+      deviceTimeZone: TZ,
+      storage: undefined,
+      loadBundled: async () => rawSample(),
+    });
+    await expect(opening).rejects.toThrow();
+    expect(await factory.databases()).toEqual([]);
+  });
+
+  it('tells listeners once when another tab signs out', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    const factory = new IDBFactory();
+    const { s } = await session(server, clock, factory);
+    const heard = vi.fn();
+    const unsubscribe = s.onClosedElsewhere(heard);
+    const ignored = vi.fn();
+    s.onClosedElsewhere(ignored)();
+    await deleteUserDb(USER, factory);
+    expect(heard).toHaveBeenCalledOnce();
+    expect(ignored).not.toHaveBeenCalled();
+    unsubscribe();
+    const late = vi.fn();
+    s.onClosedElsewhere(late)(); // after the fact: called at once
+    expect(late).toHaveBeenCalledOnce();
+  });
   it('words the refusal', () => {
     expect(signOutBlockedText({ pendingAnswers: 1, pendingSettings: false })).toBe(
       "You can't sign out yet: 1 answer is not backed up. Connect to the internet and try again, or export your progress first.",

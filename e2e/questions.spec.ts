@@ -481,6 +481,24 @@ test('matching by touch drag, then graded right', async ({ page }) => {
   expect(csp).toEqual([]);
 });
 
+test('matching: a drag let go away from every prompt pairs nothing (audit L8)', async ({
+  page,
+}) => {
+  await toMatching(page);
+  const [[p1, o1], [, o2]] = PAIRS as [[string, string], [string, string]];
+  await touchDrag(
+    page,
+    await centre(page, poolOption(page, o1)),
+    await centre(page, promptButton(page, p1)),
+  );
+  await expect(promptButton(page, p1)).toContainText(`${o1} (tap to undo)`);
+  // Drag the next option and let go on the question text, not on a prompt.
+  await touchDrag(page, await centre(page, poolOption(page, o2)), await centre(page, stem(page)));
+  await expect(poolOption(page, o2)).toBeVisible(); // still in the pool
+  await expect(promptButton(page, p1)).toContainText(`${o1} (tap to undo)`); // pair kept
+  await expect(page.locator('.match-prompts')).not.toContainText(o2);
+});
+
 test('matching by tap-tap, with undo, then graded right', async ({ page }) => {
   await toMatching(page);
   // A wrong pair first, then undo it by tapping it.

@@ -21,7 +21,18 @@ jobs:
   import:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # Audit L16: the Supabase secret lives in this environment, which only `main` may use.
+    environment: supabase-admin
     steps:
+      # Audit M4: a value pasted into the wrong box stops the job here, before any step lists
+      # the variables in the public run log. Expressions in `if:` are not printed.
+      - name: Check the repository variables (their values are not printed)
+        if: >-
+          !startsWith(vars.VITE_SUPABASE_URL, 'https://') ||
+          !endsWith(vars.VITE_SUPABASE_URL, '.supabase.co')
+        run: |
+          echo "::error::A repository variable does not look right (VITE_SUPABASE_URL must be https://….supabase.co). Fix it in Settings > Secrets and variables > Actions > Variables (docs/SETUP.md Part A3). If a secret was pasted there, replace that secret too."
+          exit 1
       - uses: actions/checkout@v5
         with:
           ref: main

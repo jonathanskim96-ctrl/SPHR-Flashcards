@@ -48,8 +48,12 @@ export function supabaseAuth(client: SupabaseClient): AuthApi {
       }
     },
     async signOut() {
+      // Signs out on the server too; offline (or if that fails), at least on this phone, so
+      // the phone never stays signed in after its data was removed (audit L1).
       const { error } = await client.auth.signOut();
-      return { error: error ? { message: error.message } : null };
+      if (!error) return { error: null };
+      const local = await client.auth.signOut({ scope: 'local' });
+      return { error: local.error ? { message: local.error.message } : null };
     },
   };
 }

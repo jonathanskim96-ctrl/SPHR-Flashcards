@@ -29,10 +29,24 @@ const isStr = (s) => typeof s === 'string' && s.trim().length > 0;
 const MAX_TEXT = 2000;
 
 if (bank.schemaVersion !== 1) err('bank', `schemaVersion must be 1, got ${bank.schemaVersion}`);
+// The app refuses the whole bank unless these hold (src/domain/bank.ts normalizeBank; audit L7).
+const VERSION_RE = /^(\d{4}-\d{2}-\d{2})\.(\d+)$/;
 if (!isStr(bank.bankVersion)) err('bank', 'bankVersion missing');
+else if (!VERSION_RE.test(bank.bankVersion)) err('bank', `bankVersion must look like 2026-10-13.1, got ${bank.bankVersion}`);
 const areaIds = new Set((bank.areas ?? []).map((a) => a.id));
 if (areaIds.size !== 5) err('bank', 'areas must list the 5 functional areas');
-for (const l of LEVELS) if (!bank.levels?.[l]?.points) err('bank', `levels.${l}.points missing`);
+for (const a of bank.areas ?? []) {
+  if (![1, 2, 3, 4, 5].includes(a.id)) err('bank', `area id must be 1-5, got ${a.id}`);
+  if (!isStr(a.name)) err('bank', `area ${a.id} has no name`);
+}
+for (const l of LEVELS) {
+  const pts = bank.levels?.[l]?.points;
+  if (!pts) err('bank', `levels.${l}.points missing`);
+  else if (!Number.isInteger(pts) || pts < 0 || pts > 3) err('bank', `levels.${l}.points must be a whole number from 0 to 3, got ${pts}`);
+}
+// Every labeled list (choices, items, prompts, options): text ids and non-empty text, or the
+// app silently drops the question (audit L7).
+const badLabels = (list) => !Array.isArray(list) || list.some((x) => !isStr(x?.id) || !isStr(x?.text));
 
 const scen = new Map();
 for (const s of bank.scenarios ?? []) {
@@ -68,6 +82,8 @@ for (const q of bank.questions ?? []) {
     else { usedScen.add(q.scenarioId); if (scen.get(q.scenarioId).area !== q.area) warn(id, 'scenario area differs from question area'); }
   }
   if (/\b(all|none) of the above\b/i.test(JSON.stringify(q.choices ?? ''))) err(id, 'uses all/none of the above');
+  for (const f of { mc: ['choices'], multi: ['choices'], ordering: ['items'], matching: ['prompts', 'options'] }[q.type] ?? [])
+    if (badLabels(q[f])) err(id, `every one of ${f} needs a text id and non-empty text`);
 
   if (q.type === 'mc' || q.type === 'multi') {
     const ch = q.choices ?? [];
@@ -90,7 +106,7 @@ for (const q of bank.questions ?? []) {
   if (q.type === 'numeric') {
     const a = q.answer;
     if (typeof a?.value !== 'number' || !Number.isFinite(a.value)) err(id, 'answer.value must be a finite number');
-    if (typeof a?.tolerance !== 'number' || a.tolerance < 0) err(id, 'answer.tolerance must be a number >= 0');
+    if (typeof a?.tolerance !== 'number' || !Number.isFinite(a.tolerance) || a.tolerance < 0) err(id, 'answer.tolerance must be a number >= 0');
     if (typeof a?.unit !== 'string') err(id, 'answer.unit must be a string (may be empty)');
   }
   if (q.type === 'text') {
@@ -167,9 +183,30 @@ for (const q of bank.questions ?? []) {
 if (longest / mcCount > 0.4) warn('bank', `correct answer is the single longest choice in ${longest}/${mcCount} MC items (cue risk)`);
 
 // Stable-id check against a previous bank: ids may never disappear (retire instead).
+// The same rules as the database import (import_bank) and the app's newest-bank-wins (audit L7):
+// a changed question needs a raised revision (retiring alone needs none), a revision never goes
+// down, and any change to the bank needs a higher bankVersion, or phones never take it.
 if (prevPath) {
   const prev = JSON.parse(readFileSync(prevPath, 'utf8'));
   for (const q of prev.questions ?? []) if (!ids.has(q.id)) err(q.id, 'question removed; set status "retired" instead of deleting');
+  const canon = (v) => Array.isArray(v) ? `[${v.map(canon).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon(v[k])}`).join(',')}}` : JSON.stringify(v);
+  const withoutStatus = (q) => canon({ ...q, status: undefined });
+  const prevById = new Map((prev.questions ?? []).map((q) => [q.id, q]));
+  let changed = false;
+  for (const q of bank.questions ?? []) {
+    const old = prevById.get(q.id);
+    if (!old) { changed = true; continue; }
+    if (canon(old) !== canon(q)) changed = true;
+    if (q.revision < old.revision) err(q.id, `revision went down from ${old.revision} to ${q.revision}`);
+    else if (q.revision === old.revision && withoutStatus(old) !== withoutStatus(q)) err(q.id, 'content changed but revision was not raised');
+  }
+  const scenKey = (b) => canon(b.scenarios ?? []);
+  if (scenKey(prev) !== scenKey(bank)) changed = true;
+  const key = (v) => { const m = VERSION_RE.exec(v ?? ''); return m ? [m[1], Number(m[2])] : null; };
+  const [a, b] = [key(bank.bankVersion), key(prev.bankVersion)];
+  const higher = a && b && (a[0] > b[0] || (a[0] === b[0] && a[1] > b[1]));
+  if (a && b && !higher && (a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]))) err('bank', `bankVersion ${bank.bankVersion} is lower than the previous ${prev.bankVersion}`);
+  else if (changed && a && b && !higher) err('bank', `questions or scenarios changed, so bankVersion must be raised (still ${bank.bankVersion})`);
 }
 
 const counts = {};

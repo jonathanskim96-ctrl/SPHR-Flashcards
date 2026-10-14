@@ -8,6 +8,7 @@ import {
   ANSWER_DEBOUNCE_MS,
   PERIODIC_MS,
   rejectionNotices,
+  SETTLE_MS,
   SETTINGS_CONFLICT_NOTICE,
   browserEnv,
   SyncEngine,
@@ -137,7 +138,7 @@ describe('flushing the outbox', () => {
     expect(await d.store.outbox()).toEqual([]);
   });
 
-  it('a rejected answer is reported and dropped from the outbox (and kept on the phone)', async () => {
+  it('a refused answer is reported once, stays queued and on the phone, and is offered again (audit L3)', async () => {
     const clock = new Clock();
     const server = new FakeServer(() => clock.now);
     const d = await device(server, clock);
@@ -145,13 +146,57 @@ describe('flushing the outbox', () => {
     const b = await d.answer('fake1-q02', WRONG);
     server.refuse.set(a.id, 'question no longer accepted');
     await d.engine.sync();
-    const status = await d.engine.status();
-    expect(status.pendingAnswers).toBe(0);
+    let status = await d.engine.status();
+    // Still waiting: sign-out is refused while it waits, so it can't be wiped from the phone.
+    expect(status.pendingAnswers).toBe(1);
     expect(status.notices).toEqual(['1 answer could not be saved: question no longer accepted']);
     expect(server.rows.map((r) => r.attempt.id)).toEqual([b.id]);
     expect(ids(await d.store.attempts())).toEqual(ids([a, b]));
+    expect(await d.store.outbox()).toMatchObject([{ kind: 'attempt', refused: true }]);
     await d.store.dismissNotices();
-    expect((await d.engine.status()).notices).toEqual([]);
+
+    // Offered again once per sync, without a new notice; a new answer is sent first.
+    const calls = server.calls;
+    const c = await d.answer('fake1-q03', RIGHT);
+    await d.engine.sync();
+    expect(server.calls).toBe(calls + 1);
+    expect(server.rows.map((r) => r.attempt.id)).toEqual([b.id, c.id]);
+    status = await d.engine.status();
+    expect(status).toMatchObject({ pendingAnswers: 1, notices: [] });
+
+    // Once the server accepts it (e.g. the phone's clock was ahead), it is backed up.
+    server.refuse.clear();
+    await d.engine.sync();
+    expect((await d.engine.status()).pendingAnswers).toBe(0);
+    expect(server.rows.map((r) => r.attempt.id)).toEqual([b.id, c.id, a.id]);
+  });
+
+  it('refused answers never hold up new ones (they go last in the 200)', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    const d = await device(server, clock);
+    const old = await d.answer('fake1-q01', RIGHT);
+    server.refuse.set(old.id, 'no');
+    await d.engine.sync();
+    for (let i = 0; i < 200; i++) await d.answer('fake1-q02', RIGHT);
+    const sent: string[][] = [];
+    const backend = server.backend();
+    const engine = new SyncEngine(
+      d.store,
+      {
+        ...backend,
+        applyChanges: (xs, s, v) => {
+          sent.push(xs.map((x) => x.id));
+          return backend.applyChanges(xs, s, v);
+        },
+      },
+      d.net.env,
+    );
+    await engine.sync();
+    expect(sent[0]).toHaveLength(200);
+    expect(sent[0]).not.toContain(old.id);
+    expect(sent[1]).toEqual([old.id]);
+    expect(await d.store.outbox()).toMatchObject([{ attempt: { id: old.id }, refused: true }]);
   });
 
   it('groups rejection messages by reason', () => {
@@ -189,9 +234,66 @@ describe('pulling', () => {
     expect(cursors).toEqual([0, 500, 1000]);
     expect((await d.store.meta()).cursor).toBe(1234);
     expect(ids(await d.store.attempts())).toEqual(ids(await other.store.attempts()));
-    // Next time only newer answers are asked for.
+    // Right away, the last 1,000 numbers are read again (audit M1: a save from another phone
+    // may still appear below the cursor); answers already on the phone are skipped.
     await engine.sync();
-    expect(cursors.at(-1)).toBe(1234);
+    expect(cursors.slice(3)).toEqual([234, 734, 1234]);
+    expect(await d.store.attempts()).toHaveLength(1234);
+    // A minute later nothing can still appear below 1234: only newer answers are asked for.
+    clock.tick(SETTLE_MS);
+    await engine.sync();
+    expect(cursors.slice(6)).toEqual([1234]);
+    clock.tick(SETTLE_MS);
+    await engine.sync();
+    expect(cursors.slice(7)).toEqual([1234]);
+  });
+
+  it('an answer saved on another phone that appears late, below the cursor, is still pulled (audit M1)', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    const a = await device(server, clock);
+    const b = await device(server, clock);
+    await a.answer('fake1-q01', RIGHT);
+    await a.engine.sync(); // seq 1
+    // Phone A's next save has taken seq 2 but not finished; phone B saves seq 3 and pulls.
+    const late = await a.answer('fake1-q02', WRONG);
+    const reserved = server.nextSeq++;
+    await b.answer('fake1-q03', RIGHT);
+    await b.engine.sync();
+    expect((await b.store.meta()).cursor).toBe(3);
+    // Phone A's save now finishes, with the lower number.
+    server.rows.push({ seq: reserved, attempt: late });
+    server.rows.sort((x, y) => x.seq - y.seq);
+    clock.tick(1000);
+    await b.engine.sync();
+    expect(ids(await b.store.attempts())).toContain(late.id);
+  });
+
+  it('pulls start where nothing more can appear, never more than 1,000 back (audit M1)', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    const d = await device(server, clock);
+    await d.store.setMeta({ cursor: 5000, settled: 0, recent: null });
+    const asked: number[] = [];
+    const backend = server.backend();
+    const engine = new SyncEngine(
+      d.store,
+      {
+        ...backend,
+        pullAttempts: (after, n) => (asked.push(after), backend.pullAttempts(after, n)),
+      },
+      d.net.env,
+    );
+    await engine.sync();
+    expect(asked).toEqual([4000]);
+    expect((await d.store.meta()).recent).toEqual({ seq: 5000, at: clock.now });
+    clock.tick(SETTLE_MS - 1);
+    await engine.sync();
+    expect(asked.at(-1)).toBe(4000);
+    clock.tick(1);
+    await engine.sync();
+    expect(asked.at(-1)).toBe(5000);
+    expect((await d.store.meta()).settled).toBe(5000);
   });
 
   it('an exactly full last page asks once more and stops on the empty page', async () => {
@@ -312,6 +414,75 @@ describe('settings', () => {
     await a.engine.sync();
     expect(ids(await a.store.attempts())).toEqual(ids(await b.store.attempts()));
     expect(await a.store.attempts()).toHaveLength(2);
+  });
+
+  it('a lost reply to a settings save is not mistaken for a conflict; a newer change is kept (audit L2)', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    server.setSettings(settings0()); // version 1
+    const d = await device(server, clock);
+    await d.engine.sync();
+    await d.store.guardedWrite({ kind: 'settings', settings: { ...settings0(), lessonSize: 20 } });
+    server.loseReplies = 1;
+    await d.engine.sync(); // saved as version 2, but the phone never heard
+    expect(server.settings?.version).toBe(2);
+    // She changes something else before the retry.
+    const newest = { ...settings0(), lessonSize: 20, dailyXpGoal: 50 };
+    await d.store.guardedWrite({ kind: 'settings', settings: newest });
+    await d.engine.sync();
+    const status = await d.engine.status();
+    expect(status.notices).toEqual([]);
+    expect(status.pendingSettings).toBe(false);
+    expect(server.settings).toEqual({ value: newest, version: 3 });
+    expect(await d.store.settingsRecord()).toEqual({
+      settings: newest,
+      version: 3,
+      isDefault: false,
+    });
+  });
+
+  it('a lost reply with nothing changed since: settled quietly at the server version (audit L2)', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    server.setSettings(settings0());
+    const d = await device(server, clock);
+    await d.engine.sync();
+    const mine = { ...settings0(), newPerDay: 7 };
+    await d.store.guardedWrite({ kind: 'settings', settings: mine });
+    server.loseReplies = 1;
+    await d.engine.sync();
+    expect((await d.store.settingsRecord())?.sent).toEqual([mine]);
+    // The retry is based on version 1; the server is at 2 with exactly these settings.
+    await d.engine.sync();
+    const status = await d.engine.status();
+    expect(status).toMatchObject({ notices: [], pendingSettings: false });
+    expect(await d.store.settingsRecord()).toEqual({
+      settings: mine,
+      version: 2,
+      isDefault: false,
+    });
+    expect(server.settings).toEqual({ value: mine, version: 2 });
+  });
+
+  it('a different change on another device is still a conflict, even after a lost reply', async () => {
+    const clock = new Clock();
+    const server = new FakeServer(() => clock.now);
+    server.setSettings(settings0());
+    const d = await device(server, clock);
+    await d.engine.sync();
+    await d.store.guardedWrite({ kind: 'settings', settings: { ...settings0(), newPerDay: 7 } });
+    d.net.setOnline(false);
+    await d.engine.sync();
+    const other = { ...settings0(), lessonSize: 25 };
+    server.setSettings(other); // another phone, version 2
+    d.net.setOnline(true);
+    await d.engine.sync();
+    expect((await d.engine.status()).notices).toEqual([SETTINGS_CONFLICT_NOTICE]);
+    expect(await d.store.settingsRecord()).toEqual({
+      settings: other,
+      version: 2,
+      isDefault: false,
+    });
   });
 
   it('untouched defaults made offline give way to the server copy without a message', async () => {

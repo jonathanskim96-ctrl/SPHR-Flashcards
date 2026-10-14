@@ -3,6 +3,7 @@ import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../domain/validate';
+import { LocalStore } from '../data/store';
 import { harness } from '../../tests/uiHarness';
 import sampleExport from '../../tests/fixtures/sample-export.json';
 import { TZ } from '../../tests/helpers';
@@ -121,6 +122,32 @@ describe('Settings: study pace', () => {
   });
 });
 
+describe('Settings: time zone (audit M6)', () => {
+  it("offers this phone's time zone when it differs, and saves it", async () => {
+    const { user, server } = await harness({ deviceTimeZone: 'America/New_York' });
+    await openSettings(user);
+    const card = screen.getByRole('region', { name: 'Time zone' });
+    expect(card.textContent).toContain('This phone is in America/New_York');
+    expect(card.textContent).toContain(TZ);
+    await user.click(within(card).getByRole('button', { name: "Use this phone's time zone" }));
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Time zone' })).toBeNull());
+    expect(screen.getByText('Time zone: America/New_York')).toBeTruthy();
+    await waitFor(() => expect(server.settings?.value.timeZone).toBe('America/New_York'), {
+      timeout: 10_000,
+    });
+  });
+
+  it('offers nothing when the zones match or the phone reports an unusable zone', async () => {
+    const same = await harness();
+    await openSettings(same.user);
+    expect(screen.queryByRole('region', { name: 'Time zone' })).toBeNull();
+    cleanup();
+    const odd = await harness({ deviceTimeZone: 'america/new_york' });
+    await openSettings(odd.user);
+    expect(screen.queryByRole('region', { name: 'Time zone' })).toBeNull();
+  });
+});
+
 describe('Settings: daily reminder', () => {
   it('turns on at once, changes time in 15-minute steps, and shows the time zone', async () => {
     const { user } = await harness();
@@ -203,9 +230,70 @@ describe('Settings: backup status, export and import', () => {
     expect(click).toHaveBeenCalledOnce();
     const out = JSON.parse(await blobs[0]!.text());
     expect(out).toMatchObject({ format: 'sphr-flashcards-progress', version: 1, attempts: [] });
+    expect(out.account).toMatch(/^[0-9a-f]{16}$/); // audit L4
     expect(out.settings.examDate).toBe('2026-12-15');
     await waitFor(() => expect(screen.queryByText('Never exported')).toBeNull());
     expect(screen.getByText('Last export: today')).toBeTruthy();
+  });
+
+  it('a download link is cleaned up a minute later, not at once (audit M5)', async () => {
+    const { user } = await harness({ installed: false });
+    await openSettings(user);
+    const { click } = stubDownload();
+    const revoke = vi.fn();
+    URL.revokeObjectURL = revoke;
+    const timers = vi.spyOn(globalThis, 'setTimeout');
+    await user.click(screen.getByRole('button', { name: 'Export progress' }));
+    expect(await screen.findByText('✓ Exported 0 answers.')).toBeTruthy();
+    expect(click).toHaveBeenCalledOnce();
+    expect(revoke).not.toHaveBeenCalled();
+    const cleanupCall = timers.mock.calls.find(([, ms]) => ms === 60_000);
+    expect(cleanupCall).toBeTruthy();
+    (cleanupCall![0] as () => void)();
+    expect(revoke).toHaveBeenCalledWith('blob:test');
+  });
+
+  it('in the installed app, exports through the share sheet and counts it only when done (audit M5)', async () => {
+    const { user } = await harness();
+    await openSettings(user);
+    const shared: File[] = [];
+    let answer: 'ok' | 'cancel' | 'fail' = 'cancel';
+    Object.assign(navigator, {
+      canShare: (d: { files?: File[] }) => !!d.files?.length,
+      share: async (d: { files: File[] }) => {
+        shared.push(d.files[0]!);
+        if (answer === 'cancel') throw new DOMException('cancelled', 'AbortError');
+        if (answer === 'fail') throw new Error('share failed');
+      },
+    });
+    try {
+      await user.click(screen.getByRole('button', { name: 'Export progress' }));
+      expect((await screen.findByRole('alert')).textContent).toContain(
+        'Export cancelled: no file was saved.',
+      );
+      expect(screen.getByText('Never exported')).toBeTruthy();
+      answer = 'fail';
+      await user.click(screen.getByRole('button', { name: 'Export progress' }));
+      await waitFor(() =>
+        expect(screen.getByRole('alert').textContent).toContain('Export failed: share failed'),
+      );
+      answer = 'ok';
+      await user.click(screen.getByRole('button', { name: 'Export progress' }));
+      expect(
+        await screen.findByText(
+          /Exported 0 answers\. Check that sphr-progress-.*\.json is in Files\./,
+        ),
+      ).toBeTruthy();
+      await waitFor(() => expect(screen.queryByText('Never exported')).toBeNull());
+      expect(shared).toHaveLength(3);
+      expect(shared[2]!.name).toMatch(/^sphr-progress-\d{4}-\d{2}-\d{2}\.json$/);
+      expect(JSON.parse(await shared[2]!.text())).toMatchObject({
+        format: 'sphr-flashcards-progress',
+      });
+    } finally {
+      delete (navigator as { canShare?: unknown }).canShare;
+      delete (navigator as { share?: unknown }).share;
+    }
   });
 
   it('says so when the export fails', async () => {
@@ -246,6 +334,49 @@ describe('Settings: backup status, export and import', () => {
       true,
     );
     await user.click(within(again).getByRole('button', { name: 'Cancel' }));
+  });
+
+  it('a file from another account: warns, and Import waits for "Import anyway" (audit L4)', async () => {
+    const { user } = await harness();
+    await openSettings(user);
+    const other = { ...sampleExport, account: '0123456789abcdef' };
+    await upload(user, file('p.json', JSON.stringify(other)));
+    const dialog = await screen.findByRole('dialog', { name: 'Import progress?' });
+    expect(within(dialog).getByRole('alert').textContent).toContain('a different account');
+    const importButton = within(dialog).getByRole('button', { name: 'Import' });
+    expect((importButton as HTMLButtonElement).disabled).toBe(true);
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Import anyway' }));
+    expect((importButton as HTMLButtonElement).disabled).toBe(false);
+    await user.click(importButton);
+    expect(await screen.findByText('✓ Imported 36 new answers.')).toBeTruthy();
+  });
+
+  it('warns about answers for questions not in the app, and shows Importing… (audit L4, L5)', async () => {
+    const { user } = await harness();
+    await openSettings(user);
+    const data = structuredClone(sampleExport);
+    data.attempts[0]!.questionId = 'gone9-q99';
+    await upload(user, file('p.json', JSON.stringify(data)));
+    const dialog = await screen.findByRole('dialog', { name: 'Import progress?' });
+    expect(dialog.textContent).toContain('1 of these answers are for questions that are not in');
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const write = LocalStore.prototype.guardedWrite;
+    vi.spyOn(LocalStore.prototype, 'guardedWrite').mockImplementation(async function (
+      this: LocalStore,
+      change,
+    ) {
+      if (change.kind === 'attempts') await gate;
+      return write.call(this, change);
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Import' }));
+    expect(await screen.findByText('Importing 36 answers…')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Import progress' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    release();
+    expect(await screen.findByText('✓ Imported 36 new answers.')).toBeTruthy();
+    expect(screen.queryByText('Importing 36 answers…')).toBeNull();
   });
 
   it('lists rejected answers and does not restore unreadable settings', async () => {

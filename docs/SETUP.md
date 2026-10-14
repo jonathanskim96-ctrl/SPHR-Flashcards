@@ -58,11 +58,17 @@ project to talk to. These values are public by design.
 
 ### A4. The one GitHub secret
 Changes: lets the "Import questions" and "Keep Supabase awake" workflows write to the
-database. It is stored encrypted and is never visible in logs.
-1. Same page (**Secrets and variables** → **Actions**), click the **Secrets** tab →
-   **New repository secret**.
-2. Name `SUPABASE_SECRET_KEY`, value: the secret key from B2 (starts `sb_secret_`).
-   Click **Add secret**.
+database. It is stored encrypted and is never visible in logs. It lives in an
+**environment** that only `main` may use, so a workflow on any other branch can't read it
+(audit L16).
+1. Repo → **Settings** → **Environments** → **New environment**. Name `supabase-admin` →
+   **Configure environment**.
+2. Under **Deployment branches and tags**, choose **Selected branches and tags** → **Add
+   deployment branch or tag rule** → type `main` → **Add rule**.
+3. Under **Environment secrets** → **Add environment secret**. Name `SUPABASE_SECRET_KEY`,
+   value: the secret key from B2 (starts `sb_secret_`). Click **Add secret**.
+4. There must be **no** repository secret of that name (Settings → Secrets and variables →
+   Actions → Secrets tab). If there is one, delete it there.
 
 ---
 
@@ -100,7 +106,7 @@ Michelle's phone (Settings → Export progress).
    deletes. Click **Run this query** to confirm.
 5. You should see **Success. No rows returned**. If you see an error, copy the red text and
    paste it to Claude. **Do not run the next file.**
-6. Repeat steps 2–5 for `0002`, then `0003` (one at a time, in order).
+6. Repeat steps 2–5 for `0002`, then `0003`, then `0004` (one at a time, in order).
 
 ### B4. Turn off public sign-ups
 Changes: nobody can create an account in your app. If you skip it, a stranger could sign up.

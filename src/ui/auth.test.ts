@@ -92,4 +92,18 @@ describe('supabaseAuth', () => {
     const bad = supabaseAuth(client({ signOut: async () => ({ error: { message: 'nope' } }) }));
     expect(await bad.signOut()).toEqual({ error: { message: 'nope' } });
   });
+
+  it('offline: still signs out on this phone (audit L1)', async () => {
+    const scopes: unknown[] = [];
+    const a = supabaseAuth(
+      client({
+        signOut: async (o?: { scope?: string }) => {
+          scopes.push(o?.scope);
+          return o?.scope === 'local' ? { error: null } : { error: { message: 'Failed to fetch' } };
+        },
+      }),
+    );
+    expect(await a.signOut()).toEqual({ error: null });
+    expect(scopes).toEqual([undefined, 'local']);
+  });
 });

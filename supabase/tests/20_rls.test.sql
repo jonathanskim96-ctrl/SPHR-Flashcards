@@ -90,14 +90,14 @@ end $$;
 do $$
 declare id1 uuid; id2 uuid;
 begin
-  id1 := public.save_push_subscription('https://push.example.test/abc', 'BPk1aaaaaaaaaaaaaaaa', 'authsecret123');
-  id2 := public.save_push_subscription('https://push.example.test/abc', 'BPk2bbbbbbbbbbbbbbbb', 'authsecret456');
+  id1 := public.save_push_subscription('https://web.push.apple.com/abc', 'BPk1aaaaaaaaaaaaaaaa', 'authsecret123');
+  id2 := public.save_push_subscription('https://web.push.apple.com/abc', 'BPk2bbbbbbbbbbbbbbbb', 'authsecret456');
   assert id1 = id2, 'saving again must update, not duplicate';
   assert (select p256dh from public.push_subscriptions) = 'BPk2bbbbbbbbbbbbbbbb';
-  assert public.disable_push_subscription('https://push.example.test/abc');
-  assert not public.disable_push_subscription('https://push.example.test/abc'), 'already disabled';
+  assert public.disable_push_subscription('https://web.push.apple.com/abc');
+  assert not public.disable_push_subscription('https://web.push.apple.com/abc'), 'already disabled';
   assert (select disabled_at is not null from public.push_subscriptions);
-  perform public.save_push_subscription('https://push.example.test/abc', 'BPk2bbbbbbbbbbbbbbbb', 'authsecret456');
+  perform public.save_push_subscription('https://web.push.apple.com/abc', 'BPk2bbbbbbbbbbbbbbbb', 'authsecret456');
   assert (select disabled_at is null from public.push_subscriptions), 'saving re-enables';
 end $$;
 
@@ -109,9 +109,9 @@ begin
   assert (select count(*) from public.attempts) = 0, 'B sees A''s answers';
   assert (select count(*) from public.settings) = 0, 'B sees A''s settings';
   assert (select count(*) from public.push_subscriptions) = 0, 'B sees A''s subscription';
-  assert not public.disable_push_subscription('https://push.example.test/abc'), 'B disabled A''s subscription';
+  assert not public.disable_push_subscription('https://web.push.apple.com/abc'), 'B disabled A''s subscription';
   perform tests.expect_error(
-    $q$select public.save_push_subscription('https://push.example.test/abc', 'BPk9cccccccccccccccc', 'stolen12')$q$,
+    $q$select public.save_push_subscription('https://web.push.apple.com/abc', 'BPk9cccccccccccccccc', 'stolen12')$q$,
     '%row-level security%');
   -- B re-sending A's answer id is a no-op, not a takeover.
   r := public.apply_changes(jsonb_build_array(tests.att(1)));

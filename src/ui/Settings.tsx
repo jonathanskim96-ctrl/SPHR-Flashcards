@@ -6,7 +6,7 @@ import { useRef, useState, type ChangeEvent } from 'react';
 import type { Session } from '../data/session';
 import { signOut, signOutBlockedText } from '../data/session';
 import { errorText } from '../data/store';
-import { isLocalDate } from '../domain/dates';
+import { isLocalDate, isTimeZone } from '../domain/dates';
 import { buildExport, previewImport, type ImportPreview } from '../domain/exportImport';
 import { EXAM_DATE_MAX, EXAM_DATE_MIN, SETTINGS_LIMITS } from '../domain/validate';
 import type { Settings as SettingsData } from '../domain/types';
@@ -102,9 +102,21 @@ export function Settings({
   const [confirm, setConfirm] = useState<'reminder-off' | 'sign-out' | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
-  const [imp, setImp] = useState<{ preview: ImportPreview; restoreSettings: boolean } | null>(null);
+  const [imp, setImp] = useState<{
+    preview: ImportPreview;
+    restoreSettings: boolean;
+    /** Ticked "Import anyway" for a file from another account (audit L4). */
+    anyway: boolean;
+  } | null>(null);
+  const [importing, setImporting] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const reminder = useReminderSwitch(session, push, s);
+  // The account's time zone came from the first device that signed in; offer this phone's
+  // when it differs (audit M6). Only a zone the validator accepts is offered.
+  const deviceZone = (
+    env.deviceTimeZone ?? (() => Intl.DateTimeFormat().resolvedOptions().timeZone)
+  )();
+  const phoneZone = deviceZone !== s.timeZone && isTimeZone(deviceZone) ? deviceZone : null;
   const reminderProblem =
     reminder.problem ?? (s.reminderEnabled ? refreshProblem(reminderRefresh) : null);
 
@@ -141,18 +153,40 @@ export function Settings({
         settings: s,
         bankVersion: study.bank?.bankVersion ?? 'unknown',
         now: new Date(env.now()),
+        userId: session.userId,
       });
-      const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      const name = `sphr-progress-${file.exportedAt.slice(0, 10)}.json`;
+      const json = JSON.stringify(file, null, 2);
+      const done = async (text: string) => {
+        await session.store.setMeta({ lastExportAt: file.exportedAt });
+        setMessage({ kind: 'ok', text });
+      };
+      // In the installed iPhone app a download link may save nothing, so use the share sheet
+      // ("Save to Files"), and count the export only when it completes (audit M5).
+      const shareFile = new File([json], name, { type: 'application/json' });
+      if (env.installed && navigator.canShare?.({ files: [shareFile] })) {
+        try {
+          await navigator.share({ files: [shareFile], title: name });
+        } catch (e) {
+          if ((e as { name?: unknown } | null)?.name === 'AbortError') {
+            setMessage({ kind: 'error', text: 'Export cancelled: no file was saved.' });
+            return;
+          }
+          throw e;
+        }
+        await done(`Exported ${file.attempts.length} answers. Check that ${name} is in Files.`);
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `sphr-progress-${file.exportedAt.slice(0, 10)}.json`;
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
-      await session.store.setMeta({ lastExportAt: file.exportedAt });
-      setMessage({ kind: 'ok', text: `Exported ${file.attempts.length} answers.` });
+      // Revoking at once can cancel the download in Safari; give it a minute (audit M5).
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      await done(`Exported ${file.attempts.length} answers.`);
     } catch (e) {
       setMessage({ kind: 'error', text: `Export failed: ${errorText(e)}` });
     }
@@ -164,9 +198,12 @@ export function Settings({
     if (!file) return;
     setMessage(null);
     try {
-      const result = previewImport(await file.text(), await session.store.attempts(), env.now());
+      const result = previewImport(await file.text(), await session.store.attempts(), env.now(), {
+        userId: session.userId,
+        questionIds: study.bank ? new Set(study.bank.questions.map((q) => q.id)) : null,
+      });
       if (!result.ok) setMessage({ kind: 'error', text: result.error });
-      else setImp({ preview: result.preview, restoreSettings: false });
+      else setImp({ preview: result.preview, restoreSettings: false, anyway: false });
     } catch (err) {
       setMessage({ kind: 'error', text: `Could not read the file: ${errorText(err)}` });
     }
@@ -176,36 +213,41 @@ export function Settings({
     if (!imp) return;
     const { preview, restoreSettings } = imp;
     setImp(null);
-    let failed = 0;
-    let first = '';
-    for (const attempt of preview.added) {
-      const r = await session.store.guardedWrite({ kind: 'attempt', attempt });
-      if (!r.ok) {
-        failed++;
-        first ||= r.errors.join('; ');
+    // One write for the whole file, with a line on screen meanwhile (audit L5).
+    setImporting(preview.added.length);
+    setMessage(null);
+    try {
+      const r = preview.added.length
+        ? await session.store.guardedWrite({ kind: 'attempts', attempts: preview.added })
+        : ({ ok: true, added: 0 } as const);
+      let settingsNote = '';
+      if (r.ok && restoreSettings && preview.settings) {
+        const ok = await save(preview.settings);
+        settingsNote = ok ? ' Settings restored.' : ' Settings could not be restored.';
       }
+      session.engine.noteAnswer();
+      setMessage(
+        r.ok
+          ? { kind: 'ok', text: `Imported ${r.added ?? 0} new answers.${settingsNote}` }
+          : {
+              kind: 'error',
+              text: `Nothing was imported: ${r.errors.slice(0, 3).join('; ')}`,
+            },
+      );
+    } finally {
+      setImporting(null);
     }
-    let settingsNote = '';
-    if (restoreSettings && preview.settings) {
-      const ok = await save(preview.settings);
-      settingsNote = ok ? ' Settings restored.' : ' Settings could not be restored.';
-    }
-    session.engine.noteAnswer();
-    const added = preview.added.length - failed;
-    setMessage(
-      failed
-        ? {
-            kind: 'error',
-            text: `Imported ${added} answers; ${failed} could not be saved: ${first}.${settingsNote}`,
-          }
-        : { kind: 'ok', text: `Imported ${added} new answers.${settingsNote}` },
-    );
   }
 
   async function doSignOut() {
     setConfirm(null);
     setBlocked(null);
-    const r = await signOut(session, auth);
+    const r = await signOut(session, auth, () =>
+      setMessage({
+        kind: 'ok',
+        text: 'Signing out… waiting for the app to close in your other tab or window.',
+      }),
+    );
     if (r.ok) onSignedOut();
     else if (r.reason === 'unsynced') setBlocked(signOutBlockedText(r));
     else setMessage({ kind: 'error', text: r.error });
@@ -236,6 +278,21 @@ export function Settings({
 
       <section className="stack" aria-label="Study pace">
         <h2>Study</h2>
+        {phoneZone && (
+          <section className="card stack" aria-label="Time zone">
+            <p>
+              This phone is in <strong>{phoneZone}</strong>, but your study days and reminder use{' '}
+              <strong>{s.timeZone}</strong>.
+            </p>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => void save({ ...s, timeZone: phoneZone })}
+            >
+              Use this phone's time zone
+            </button>
+          </section>
+        )}
         {field(
           'newPerDay',
           'New cards per day',
@@ -327,12 +384,23 @@ export function Settings({
         <h2>Backup</h2>
         <SyncStatusLine engine={session.engine} store={session.store} />
         <p className="muted">{lastExportText(study.lastExportAt, env.now(), s.timeZone)}</p>
-        <button type="button" className="btn secondary" onClick={() => void doExport()}>
+        <button
+          type="button"
+          className="btn secondary"
+          disabled={importing !== null}
+          onClick={() => void doExport()}
+        >
           Export progress
         </button>
-        <button type="button" className="btn secondary" onClick={() => fileRef.current?.click()}>
+        <button
+          type="button"
+          className="btn secondary"
+          disabled={importing !== null}
+          onClick={() => fileRef.current?.click()}
+        >
           Import progress
         </button>
+        {importing !== null && <p role="status">Importing {importing} answers…</p>}
         <input
           ref={fileRef}
           type="file"
@@ -414,7 +482,10 @@ export function Settings({
         <ConfirmDialog
           title="Import progress?"
           confirmLabel="Import"
-          confirmDisabled={imp.preview.added.length === 0 && !imp.restoreSettings}
+          confirmDisabled={
+            (imp.preview.added.length === 0 && !imp.restoreSettings) ||
+            (imp.preview.otherAccount && !imp.anyway)
+          }
           onCancel={() => setImp(null)}
           onConfirm={() => void doImport()}
         >
@@ -433,6 +504,28 @@ export function Settings({
                 <li>…and {imp.preview.rejected.length - 5} more</li>
               )}
             </ul>
+          )}
+          {imp.preview.otherAccount && (
+            <div role="alert" className="error">
+              <p>
+                ⚠ This file was exported from a different account. Its answers would be added to
+                this account for good (answers can't be removed).
+              </p>
+              <label className="switch-row">
+                <input
+                  type="checkbox"
+                  checked={imp.anyway}
+                  onChange={(e) => setImp({ ...imp, anyway: e.target.checked })}
+                />
+                <span>Import anyway</span>
+              </label>
+            </div>
+          )}
+          {imp.preview.unknownQuestions > 0 && (
+            <p>
+              ⚠ {imp.preview.unknownQuestions} of these answers are for questions that are not in
+              the app's current questions.
+            </p>
           )}
           <p className="muted">Importing only adds answers; nothing is removed.</p>
           {imp.preview.settings ? (

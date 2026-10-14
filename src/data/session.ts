@@ -20,6 +20,11 @@ export interface Session {
   /** The result of asking for persistent storage. */
   persistence: Promise<PersistResult>;
   factory: IDBFactory | undefined;
+  /**
+   * Calls `listener` once if another tab or window signs out of this account: this copy's
+   * data on the phone is then closed and syncing stops (audit L1). Returns an unsubscribe.
+   */
+  onClosedElsewhere(listener: () => void): () => void;
 }
 
 export interface SessionOptions {
@@ -35,7 +40,14 @@ export interface SessionOptions {
 
 export async function openSession(o: SessionOptions): Promise<Session> {
   const env = o.env ?? browserEnv();
-  const db = await openUserDb(o.userId, o.factory);
+  const closedListeners = new Set<() => void>();
+  let closed = false;
+  let stopAll = () => {};
+  const db = await openUserDb(o.userId, o.factory, () => {
+    closed = true;
+    stopAll();
+    for (const l of closedListeners) l();
+  });
   const store = new LocalStore(db, env.now);
   const engine = new SyncEngine(store, o.backend, env);
   await ensureSettings(
@@ -49,6 +61,10 @@ export async function openSession(o: SessionOptions): Promise<Session> {
   engine.start();
   const bank = new BankManager(store, o.backend, o.loadBundled ?? (() => fetchBundledBank()), env);
   void bank.start();
+  stopAll = () => {
+    engine.stop();
+    bank.stop();
+  };
   return {
     userId: o.userId,
     store,
@@ -57,6 +73,14 @@ export async function openSession(o: SessionOptions): Promise<Session> {
     bank,
     persistence,
     factory: o.factory,
+    onClosedElsewhere(listener) {
+      if (closed) {
+        listener();
+        return () => {};
+      }
+      closedListeners.add(listener);
+      return () => closedListeners.delete(listener);
+    },
   };
 }
 
@@ -115,9 +139,16 @@ export type SignOutResult =
 
 /**
  * Tries one last sync, then refuses if anything is still waiting to back up. Otherwise
- * signs out and deletes this user's local data (everything in it is on the server).
+ * deletes this user's local data (everything in it is on the server), then signs out
+ * (audit L1: in that order, so a failed sign-out never leaves another tab writing into data
+ * that is deleted later). Other open copies of the app close their data at once; if an
+ * older one doesn't, `onWaiting` is called and the sign-out finishes once it is closed.
  */
-export async function signOut(session: Session, auth: AuthLike): Promise<SignOutResult> {
+export async function signOut(
+  session: Session,
+  auth: AuthLike,
+  onWaiting?: () => void,
+): Promise<SignOutResult> {
   try {
     // Inside the try: a failing check must show an error, not vanish (audit L10).
     await session.engine.sync();
@@ -129,17 +160,26 @@ export async function signOut(session: Session, auth: AuthLike): Promise<SignOut
         pendingAnswers: pending.answers,
         pendingSettings: pending.settings,
       };
-    const { error } = await auth.signOut();
-    if (error) return { ok: false, reason: 'error', error: `Sign-out failed: ${error.message}` };
     session.engine.stop();
     session.bank.stop();
     session.store.close();
-    await deleteUserDb(session.userId, session.factory);
-    return { ok: true };
+    await deleteUserDb(session.userId, session.factory, onWaiting);
   } catch (e) {
     return { ok: false, reason: 'error', error: `Sign-out failed: ${errorText(e)}` };
   }
+  try {
+    const { error } = await auth.signOut();
+    if (error) return { ok: false, reason: 'error', error: signedOutLocallyText(error.message) };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: 'error', error: signedOutLocallyText(errorText(e)) };
+  }
 }
+
+/** The phone's data is already gone (all of it was backed up); only the account step failed. */
+const signedOutLocallyText = (why: string) =>
+  `Your answers are all backed up and were removed from this phone, but signing out did ` +
+  `not finish (${why}). Close the app and open it again.`;
 
 /** The sign-out refusal message (the screen adds an "Export progress" button). */
 export function signOutBlockedText(r: { pendingAnswers: number; pendingSettings: boolean }) {

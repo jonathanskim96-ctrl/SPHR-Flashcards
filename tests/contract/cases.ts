@@ -293,7 +293,7 @@ export function settingsCases(): Case[] {
 
 export function subscriptionCases(): Case[] {
   const base = {
-    endpoint: 'https://push.example.test/abc',
+    endpoint: 'https://web.push.apple.com/abc',
     p256dh: 'B'.repeat(87),
     auth: 'c'.repeat(22),
   };
@@ -309,12 +309,27 @@ export function subscriptionCases(): Case[] {
   });
   return [
     ok('a normal subscription', {}),
-    ok('endpoint of 1,024 bytes', { endpoint: `https://${'x'.repeat(1016)}` }),
-    bad('endpoint of 1,025 bytes', { endpoint: `https://${'x'.repeat(1017)}` }),
-    bad('endpoint of 1,025 bytes, 2-byte letters', { endpoint: `https://${'é'.repeat(508)}x` }),
-    bad('endpoint over http', { endpoint: 'http://push.example.test/abc' }),
-    bad('endpoint HTTPS in capitals', { endpoint: 'HTTPS://push.example.test/abc' }),
-    bad('endpoint with a NUL character', { endpoint: 'https://x/\u0000' }),
+    ok('endpoint of 1,024 bytes', { endpoint: `https://web.push.apple.com/${'x'.repeat(997)}` }),
+    bad('endpoint of 1,025 bytes', { endpoint: `https://web.push.apple.com/${'x'.repeat(998)}` }),
+    bad('endpoint of 1,025 bytes, 2-byte letters', {
+      endpoint: `https://web.push.apple.com/${'é'.repeat(499)}`,
+    }),
+    // Audit L13: only real push services, in the app and the database alike.
+    ok('Google push endpoint', { endpoint: 'https://fcm.googleapis.com/fcm/send/abc' }),
+    ok('Mozilla push endpoint', {
+      endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/a',
+    }),
+    ok('Microsoft push endpoint', {
+      endpoint: 'https://wns2-par02p.notify.windows.com/w/?token=a',
+    }),
+    bad('endpoint on another host', { endpoint: 'https://attacker.example/push' }),
+    bad('endpoint on an IP address', { endpoint: 'https://169.254.169.254/latest/meta-data/' }),
+    bad('endpoint on a look-alike host', { endpoint: 'https://web.push.apple.com.evil.test/a' }),
+    bad('endpoint with a user name', { endpoint: 'https://user:pass@web.push.apple.com/a' }),
+    bad('endpoint with a port', { endpoint: 'https://web.push.apple.com:8443/a' }),
+    bad('endpoint over http', { endpoint: 'http://web.push.apple.com/abc' }),
+    bad('endpoint HTTPS in capitals', { endpoint: 'HTTPS://web.push.apple.com/abc' }),
+    bad('endpoint with a NUL character', { endpoint: 'https://web.push.apple.com/\u0000' }),
     ok('p256dh of 16', { p256dh: 'A'.repeat(16) }),
     ok('p256dh of 255', { p256dh: 'A'.repeat(255) }),
     bad('p256dh of 15', { p256dh: 'A'.repeat(15) }),

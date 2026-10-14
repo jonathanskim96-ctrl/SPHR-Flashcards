@@ -32,6 +32,8 @@ export async function harness(
     offline?: boolean;
     /** Opened from the Home Screen icon (default) rather than a browser tab. */
     installed?: boolean;
+    /** This device's time zone (default: the same as the settings). */
+    deviceTimeZone?: string;
     /** This phone's notification permission before anything is asked (null: no push). */
     permission?: Permission | null;
     /** What she answers when asked for notifications (default: Allow). */
@@ -78,7 +80,12 @@ export async function harness(
   const deps: AppDeps = {
     auth,
     backend: server.backend(),
-    env: { now: () => clock.now, rng: seededRng(7), installed: opts.installed ?? true },
+    env: {
+      now: () => clock.now,
+      rng: seededRng(7),
+      installed: opts.installed ?? true,
+      deviceTimeZone: () => opts.deviceTimeZone ?? TZ,
+    },
     push: browser.push,
     sessionOptions: {
       factory,

@@ -122,8 +122,18 @@ export interface Store {
   claimDay(userId: string, localDate: string): Promise<boolean>;
   markSent(deviceId: string, at: string): Promise<void>;
   markGone(deviceId: string, at: string): Promise<void>;
-  markFailed(device: Device): Promise<void>;
+  /** Counts a failure; at MAX_FAILURES in a row the device is turned off (`at`). */
+  markFailed(device: Device, at: string): Promise<void>;
 }
+
+/**
+ * Only real push services (audit L13), the same list as the app (src/domain/validate.ts) and
+ * the database (migration 0004). A device with any other address is turned off, never sent to.
+ */
+export const PUSH_ENDPOINT_RE =
+  /^https:\/\/(([a-z0-9-]+\.)*(push\.apple\.com|notify\.windows\.com)|fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com)\//;
+/** Failures in a row (one a day) after which a device is turned off (audit L13). */
+export const MAX_FAILURES = 10;
 
 /** Sends one push; returns the push service's HTTP status (an error status does not throw). */
 export type Sender = (device: Device) => Promise<number>;
@@ -136,6 +146,8 @@ export interface Summary {
   sent: number;
   gone: number;
   failed: number;
+  /** Devices turned off because their address is not a push service's (audit L13). */
+  blocked: number;
   errors: string[];
 }
 
@@ -148,7 +160,13 @@ function hostOf(endpoint: string): string {
   }
 }
 
-export async function runReminders(store: Store, send: Sender, nowMs: number): Promise<Summary> {
+export async function runReminders(
+  store: Store,
+  send: Sender,
+  nowMs: number,
+  /** Tests that send to a local push server widen this; production uses the real list. */
+  isPushEndpoint: (endpoint: string) => boolean = (e) => PUSH_ENDPOINT_RE.test(e),
+): Promise<Summary> {
   const slot = slotOf(nowMs);
   const at = new Date(nowMs).toISOString();
   const sum: Summary = {
@@ -159,6 +177,7 @@ export async function runReminders(store: Store, send: Sender, nowMs: number): P
     sent: 0,
     gone: 0,
     failed: 0,
+    blocked: 0,
     errors: [],
   };
   for (const row of await store.enabledReminders()) {
@@ -182,12 +201,18 @@ export async function runReminders(store: Store, send: Sender, nowMs: number): P
       continue;
     }
     for (const device of devices) {
+      if (!isPushEndpoint(device.endpoint)) {
+        sum.blocked++;
+        sum.errors.push(`${hostOf(device.endpoint)}: not a push service; device turned off`);
+        await store.markGone(device.id, at);
+        continue;
+      }
       let status: number;
       try {
         status = await send(device);
       } catch (e) {
         status = 0;
-        sum.errors.push(`${hostOf(device.endpoint)}: ${errorText(e)}`);
+        sum.errors.push(`${hostOf(device.endpoint)}: ${withoutAddresses(errorText(e))}`);
       }
       if (status >= 200 && status < 300) {
         sum.sent++;
@@ -198,7 +223,7 @@ export async function runReminders(store: Store, send: Sender, nowMs: number): P
       } else {
         sum.failed++;
         if (status) sum.errors.push(`${hostOf(device.endpoint)}: push service answered ${status}`);
-        await store.markFailed(device);
+        await store.markFailed(device, at);
       }
     }
   }
@@ -207,6 +232,11 @@ export async function runReminders(store: Store, send: Sender, nowMs: number): P
 
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+/** A network error's text may quote the push address; keep only its host (audit I2). */
+function withoutAddresses(text: string): string {
+  return text.replace(/https?:\/\/[^\s'"()<>]+/g, (u) => hostOf(u));
 }
 
 /** Compares two strings in time that does not depend on where they differ. */
@@ -295,7 +325,8 @@ export function supabaseStore(client: SupabaseClient): Store {
     async markSent(deviceId, at) {
       const { error } = await client
         .from('push_subscriptions')
-        .update({ last_success_at: at })
+        // A success ends a run of failures.
+        .update({ last_success_at: at, failure_count: 0 })
         .eq('id', deviceId);
       check('recording a sent reminder', error);
     },
@@ -306,10 +337,15 @@ export function supabaseStore(client: SupabaseClient): Store {
         .eq('id', deviceId);
       check('disabling a device', error);
     },
-    async markFailed(device) {
+    async markFailed(device, at) {
+      const failures = device.failureCount + 1;
       const { error } = await client
         .from('push_subscriptions')
-        .update({ failure_count: device.failureCount + 1 })
+        .update(
+          failures >= MAX_FAILURES
+            ? { failure_count: failures, disabled_at: at }
+            : { failure_count: failures },
+        )
         .eq('id', device.id);
       check('recording a failed reminder', error);
     },

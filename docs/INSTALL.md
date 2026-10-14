@@ -69,4 +69,6 @@ Tick each one. Tell the build session about anything that fails.
       Settings says "All answers backed up".
 - [ ] Set the reminder 15–30 minutes ahead; it arrives (lock the phone and wait). Then set
       it back to 3:00 PM.
-- [ ] Export progress saves a file in Files.
+- [ ] Export progress opens the share sheet; **Save to Files** saves a file you can see in
+      the Files app, and Settings then says "Last export: today". (Cancelling the sheet says
+      "Export cancelled" and does not count as an export.)

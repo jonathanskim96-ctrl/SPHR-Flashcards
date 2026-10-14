@@ -17,6 +17,9 @@ import { SignIn } from './ui/SignIn';
 import { UpdateBanner } from './ui/UpdateBanner';
 import { useStudy } from './ui/useStudy';
 
+export const SIGNED_OUT_ELSEWHERE =
+  'You signed out in another tab or window. Sign in again to keep studying here.';
+
 type Phase =
   | { name: 'starting' }
   | { name: 'signed-out'; error: string | null }
@@ -85,6 +88,17 @@ function Gate({ deps }: { deps: AppDeps }) {
         setPhase({ name: 'signed-out', error: `Could not check your sign-in: ${errorText(e)}` }),
     );
   }, [deps, open]);
+
+  // Signed out in another tab or window (audit L1): this copy's data was closed; go to the
+  // sign-in screen instead of letting her answer into data that is being deleted.
+  const readySession = phase.name === 'ready' ? phase.session : null;
+  useEffect(
+    () =>
+      readySession?.onClosedElsewhere(() =>
+        setPhase({ name: 'signed-out', error: SIGNED_OUT_ELSEWHERE }),
+      ),
+    [readySession],
+  );
 
   if (phase.name === 'starting')
     return (

@@ -85,23 +85,28 @@ test('Mistakes: a wrong card joins it and leaves after right answers on two diff
 }) => {
   const cloud = await openAt(page, '2026-10-20T09:00');
   await choose(page, [1], ['K']);
-  await expect(mistakesButton(page)).toHaveText('Mistakes (0)');
+  await expect(mistakesButton(page)).toHaveCount(0);
   await answerOnly(page, 'fake1-q01', 'Green'); // wrong
-  await expect(mistakesButton(page)).toHaveText('Mistakes (1)');
+  // Answered today, so it can't be practised until tomorrow: no button that leads nowhere
+  // (audit M2: before, "Mistakes (1)" opened "All caught up" in a loop).
+  await expect(mistakesButton(page)).toHaveCount(0);
 
-  // Day 1: right once. Still in Mistakes; and not offered again the same day.
+  // Day 1: in Mistakes; right once. Still in Mistakes, but not offered again the same day.
   await nextDay(page, cloud);
   await expect(mistakesButton(page)).toHaveText('Mistakes (1)');
   await answerOnly(page, 'fake1-q01', 'Blue', 'Mistakes (1)');
-  await expect(mistakesButton(page)).toHaveText('Mistakes (1)');
-  await mistakesButton(page).click();
+  await expect(mistakesButton(page)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Start lesson' }).click();
   await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Practice Mistakes/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Back to Home' }).click();
 
-  // Day 2: right again, on a different day: it leaves.
+  // Day 2: still in Mistakes (one right answer is not enough); right again: it leaves.
   await nextDay(page, cloud);
+  await expect(mistakesButton(page)).toHaveText('Mistakes (1)');
   await answerOnly(page, 'fake1-q01', 'Blue', 'Mistakes (1)');
-  await expect(mistakesButton(page)).toHaveText('Mistakes (0)');
+  await nextDay(page, cloud);
+  await expect(mistakesButton(page)).toHaveCount(0);
 });
 
 test('progress bars and the tier badge update after mastery', async ({ page }) => {

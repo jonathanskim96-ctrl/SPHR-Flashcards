@@ -8,12 +8,19 @@
 // overlap; a request during a run schedules one more run.
 import { MAX_BATCH, PULL_PAGE, type Backend } from './backend';
 import type { OutboxItem } from './db';
-import { errorText, type LocalStore } from './store';
+import { errorText, sameSettings, type LocalStore } from './store';
 
 export const ANSWER_DEBOUNCE_MS = 2_000;
 export const PERIODIC_MS = 5 * 60_000;
 /** Runs in a row for one request (a pull discarded by a local write asks for another). */
 const MAX_RUNS = 5;
+/**
+ * Audit M1: a save commits within seconds, so after a minute nothing can still appear below
+ * the cursor of that time. Pulls re-read from there (never more than REREAD_MAX numbers
+ * back), and answers already on the phone are skipped.
+ */
+export const SETTLE_MS = 60_000;
+export const REREAD_MAX = 1_000;
 
 export const SETTINGS_CONFLICT_NOTICE = 'Settings were changed on another device; reloaded them.';
 
@@ -170,12 +177,22 @@ export class SyncEngine {
   }
 
   private async flush(): Promise<void> {
+    // Each item is sent at most once per flush: a refused answer stays queued (audit L3)
+    // and is offered again on the next sync, not in a loop now.
+    const tried = new Set<number>();
     for (;;) {
-      const items = await this.store.outbox();
-      const answers = items.filter(isAnswer).slice(0, MAX_BATCH);
+      const items = (await this.store.outbox()).filter((i) => !tried.has(i.n as number));
+      // Answers the server refused before go last, so they never hold up new ones.
+      const all = items.filter(isAnswer);
+      const answers = [...all.filter((i) => !i.refused), ...all.filter((i) => i.refused)].slice(
+        0,
+        MAX_BATCH,
+      );
       const settingsItems = items.filter((i) => i.kind === 'settings');
       if (!answers.length && !settingsItems.length) return;
+      for (const i of [...answers, ...settingsItems]) tried.add(i.n as number);
       const record = settingsItems.length ? await this.store.settingsRecord() : undefined;
+      if (record) await this.store.noteSettingsSent(record.settings);
 
       const res = await this.backend.applyChanges(
         answers.map((i) => i.attempt),
@@ -183,12 +200,24 @@ export class SyncEngine {
         record ? record.version : null,
       );
 
-      const notices = rejectionNotices(res.rejected.map((r) => r.reason));
+      const refusedIdx = new Set(res.rejected.map((r) => r.index));
+      const notices = rejectionNotices(
+        res.rejected.filter((r) => !answers[r.index]?.refused).map((r) => r.reason),
+      );
       let settings: Parameters<LocalStore['confirmSent']>[0]['settings'] = null;
+      const server = res.serverSettings;
       if (record) {
         if (res.settingsError !== null) {
           settings = { outcome: 'error' };
           notices.push(`Settings could not be saved: ${res.settingsError}`);
+        } else if (
+          res.settingsConflict &&
+          server &&
+          server.version === (record.version ?? 0) + 1 &&
+          [...(record.sent ?? []), record.settings].some((s) => sameSettings(s, server.settings))
+        ) {
+          // Our own earlier save, whose reply was lost (audit L2): not a conflict.
+          settings = { outcome: 'landed', server };
         } else if (res.settingsConflict) {
           settings = { outcome: 'conflict', server: res.serverSettings };
           if (!record.isDefault) notices.push(SETTINGS_CONFLICT_NOTICE);
@@ -200,7 +229,10 @@ export class SyncEngine {
         }
       }
       await this.store.confirmSent({
-        sentKeys: [...answers, ...settingsItems].map((i) => i.n as number),
+        sentKeys: [...answers.filter((_, i) => !refusedIdx.has(i)), ...settingsItems].map(
+          (i) => i.n as number,
+        ),
+        refusedKeys: answers.filter((_, i) => refusedIdx.has(i)).map((i) => i.n as number),
         settings,
         notices,
       });
@@ -209,7 +241,14 @@ export class SyncEngine {
 
   private async pull(): Promise<void> {
     const epoch = this.store.writeEpoch;
-    let cursor = (await this.store.meta()).cursor;
+    const meta = await this.store.meta();
+    const now = this.env.now();
+    let { settled, recent } = meta;
+    if (recent && now - recent.at >= SETTLE_MS) {
+      settled = Math.max(settled, recent.seq);
+      recent = null;
+    }
+    let cursor = Math.max(settled, meta.cursor - REREAD_MAX);
     for (;;) {
       const page = await this.backend.pullAttempts(cursor, PULL_PAGE);
       if (page.bad.length)
@@ -224,6 +263,8 @@ export class SyncEngine {
       cursor = page.lastSeq;
       if (page.rows.length + page.bad.length < PULL_PAGE) break;
     }
+    const pulledTo = Math.max(cursor, meta.cursor);
+    await this.store.setMeta({ settled, recent: recent ?? { seq: pulledTo, at: now } });
     const server = await this.backend.getSettings();
     if (server && !(await this.store.mergeServerSettings(epoch, server))) this.again = true;
   }

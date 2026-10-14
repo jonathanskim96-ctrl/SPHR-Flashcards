@@ -192,25 +192,38 @@ describe('validateAttempt', () => {
 
 describe('validateSubscription', () => {
   const good = {
-    endpoint: 'https://push.example.test/abc',
+    endpoint: 'https://web.push.apple.com/abc',
     p256dh: 'A'.repeat(16),
     auth: 'b'.repeat(8),
   };
   it('accepts a well-formed subscription', () => {
     expect(validateSubscription(good)).toEqual({ ok: true, value: good });
     expect(validateSubscription({ ...good, p256dh: 'A-_='.repeat(63) + 'abc' }).ok).toBe(true);
-    expect(validateSubscription({ ...good, endpoint: 'https://' + 'x'.repeat(1016) }).ok).toBe(
-      true,
-    );
+    const at1024 = 'https://web.push.apple.com/' + 'x'.repeat(997);
+    expect(validateSubscription({ ...good, endpoint: at1024 }).ok).toBe(true);
+    for (const endpoint of [
+      'https://fcm.googleapis.com/fcm/send/abc',
+      'https://updates.push.services.mozilla.com/wpush/v2/abc',
+      'https://wns2-par02p.notify.windows.com/w/?token=abc',
+      'https://api.push.apple.com/abc',
+    ])
+      expect(validateSubscription({ ...good, endpoint }).ok, endpoint).toBe(true);
   });
   it('rejects every bound and wrong type', () => {
     for (const bad of [
       null,
       [],
-      { ...good, endpoint: 'http://push.example.test/abc' },
-      { ...good, endpoint: 'https://' + 'x'.repeat(1017) },
-      { ...good, endpoint: 'https://é'.padEnd(1020, 'x') + 'éé' },
-      { ...good, endpoint: 'https://x\u0000' },
+      { ...good, endpoint: 'http://web.push.apple.com/abc' },
+      { ...good, endpoint: 'https://web.push.apple.com/' + 'x'.repeat(998) },
+      { ...good, endpoint: 'https://web.push.apple.com/' + 'é'.repeat(499) },
+      { ...good, endpoint: 'https://web.push.apple.com/x\u0000' },
+      // Audit L13: only real push services.
+      { ...good, endpoint: 'https://attacker.example/push' },
+      { ...good, endpoint: 'https://169.254.169.254/latest/meta-data/' },
+      { ...good, endpoint: 'https://web.push.apple.com.evil.test/abc' },
+      { ...good, endpoint: 'https://user:pass@web.push.apple.com/abc' },
+      { ...good, endpoint: 'https://web.push.apple.com:8443/abc' },
+      { ...good, endpoint: 'https://WEB.PUSH.APPLE.COM/abc' },
       { ...good, endpoint: 5 },
       { ...good, p256dh: 'A'.repeat(15) },
       { ...good, p256dh: 'A'.repeat(256) },

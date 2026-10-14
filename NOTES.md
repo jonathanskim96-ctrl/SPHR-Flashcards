@@ -445,3 +445,39 @@ stops without printing it), L6 `saveEnabled` reads the latest settings
 "Not now" errors shown (`SyncStatusLine.test.tsx`, `reminder.test.tsx`), L17
 `tests/setup.ts` (`tests/setup.test.ts`). Everything else waits for the owner's decision.
 
+
+## 2026-10-14: Audit fixes (owner: "make all of your recommended changes")
+
+Owner approved option A for every audit item (HANDOFF §2). Built on the same branch, each
+with tests that fail without the fix (checked by removing the fix):
+- **Data:** M1 pulls re-read below the cursor until a minute old (`settled`/`recent` in
+  meta; max 1,000 back); re-read answers no longer trigger a screen update. L2 the settings
+  record keeps `sent` (unanswered sends); a "conflict" equal to one of them is our own
+  save. L3 refused answers stay in the outbox marked `refused`, sent last, notice once. L1
+  `openUserDb` closes on `versionchange` and tells the session (`onClosedElsewhere`); the
+  App goes to sign-in with a message; sign-out deletes local data first, waits (with a
+  message) for an older copy that blocks it, and `supabaseAuth.signOut` falls back to
+  `scope: 'local'` offline. L5 `guardedWrite({kind: 'attempts'})` (all checked first, one
+  transaction, one screen update).
+- **Screens:** M2 Mistakes counts only cards not answered today, hidden at 0 (the e2e
+  Mistakes and sync tests now check it the next day). M5 share sheet in the installed app,
+  "Last export" only on success, link revoked after 60 s. M6 time-zone offer in Settings →
+  Study (`AppEnv.deviceTimeZone`). L4 export `account` fingerprint; preview warnings, "Import
+  anyway" for another account. L8 matching uses `rectIntersection` (`pointerWithin` broke
+  the e2e touch drags, so it was not used).
+- **Tooling/CI:** M3 checker rules (WEAKENING list, DO bodies, masker fixes, marker on its
+  own line; 0001–0003 pinned by hash). L7 validator checks + `--previous` version/revision
+  rules (the "retiring is allowed" test now raises `bankVersion`). M4 workflow `if:` step
+  before any step lists variables. L16 `environment: supabase-admin` on import and
+  keep-alive; SETUP A4 rewritten.
+- **Database:** `0004_audit_hardening.sql` (L12 direct-insert checks, 200 cap, settings
+  version bump; L13 `is_push_endpoint` + 10-device cap; L14 restrictive no-anonymous
+  policies; L15 default privileges). New `supabase/tests/90_audit.test.sql` (fails without
+  0004). Test data's made-up push host `push.example.test` became `web.push.apple.com`
+  everywhere (same paths); 30_attack's http/javascript cases now expect the earlier
+  "push address refused"; the contract boundary table has 8 new endpoint rows. Function:
+  `PUSH_ENDPOINT_RE`, `MAX_FAILURES` (10), success resets `failure_count`, addresses stripped
+  from error text; the local real-push test passes `() => true` as the allow-list. L11
+  recovery script raises the settings version (RECOVERY.md copy updated).
+- Nothing was run against the live system. The owner's steps (merge, export, 0004,
+  function redeploy, environment secret, read-only checks) are HANDOFF §3 item 20.

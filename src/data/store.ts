@@ -8,12 +8,20 @@ import { canonicalAttempt, type PulledAttempt, type VersionedSettings } from './
 import type { Meta, OutboxItem, SettingsRecord, UserDb } from './db';
 
 export type Change =
-  { kind: 'attempt'; attempt: unknown } | { kind: 'settings'; settings: unknown };
+  | { kind: 'attempt'; attempt: unknown }
+  /** Many answers at once (an import, audit L5): all are checked, then saved together. */
+  | { kind: 'attempts'; attempts: readonly unknown[] }
+  | { kind: 'settings'; settings: unknown };
 
-export type WriteResult = { ok: true } | { ok: false; errors: string[] };
+/** `added`: for `attempts`, how many were new (answers already on the phone are skipped). */
+export type WriteResult = { ok: true; added?: number } | { ok: false; errors: string[] };
 
 const META_DEFAULTS: Meta = {
   cursor: 0,
+  // Missing on phones from before audit M1: their first pull re-reads everything once, which
+  // also brings in any answer an earlier pull skipped.
+  settled: 0,
+  recent: null,
   lastSyncAt: null,
   lastExportAt: null,
   notices: [],
@@ -59,7 +67,31 @@ export class LocalStore {
     this.writeEpoch++;
     this.writesInFlight++;
     try {
-      if (change.kind === 'attempt') {
+      if (change.kind === 'attempts') {
+        // Every answer is checked first; one bad answer means nothing is saved.
+        const valid: Attempt[] = [];
+        const errors: string[] = [];
+        change.attempts.forEach((a, i) => {
+          const r = validateAttempt(a, this.now());
+          if (r.ok) valid.push(canonicalAttempt(r.value));
+          else errors.push(`#${i + 1}: ${r.errors.join('; ')}`);
+        });
+        if (errors.length) return { ok: false, errors };
+        const tx = this.db.transaction(['attempts', 'outbox'], 'readwrite');
+        const attempts = tx.objectStore('attempts');
+        const outbox = tx.objectStore('outbox');
+        let added = 0;
+        for (const attempt of valid)
+          if (!(await attempts.get(attempt.id))) {
+            await attempts.add(attempt);
+            await outbox.add({ kind: 'attempt', attempt });
+            added++;
+          }
+        await tx.done;
+        // One screen update for the whole import, not one per answer.
+        if (added) this.changed();
+        return { ok: true, added };
+      } else if (change.kind === 'attempt') {
         const r = validateAttempt(change.attempt, this.now());
         if (!r.ok) return { ok: false, errors: r.errors };
         const attempt = canonicalAttempt(r.value);
@@ -79,12 +111,15 @@ export class LocalStore {
         const tx = this.db.transaction(['settings', 'outbox'], 'readwrite');
         const current = await tx.objectStore('settings').get('current');
         await Promise.all([
-          tx
-            .objectStore('settings')
-            .put(
-              { settings: r.value, version: current?.version ?? null, isDefault: false },
-              'current',
-            ),
+          tx.objectStore('settings').put(
+            {
+              settings: r.value,
+              version: current?.version ?? null,
+              isDefault: false,
+              ...(current?.sent ? { sent: current.sent } : {}),
+            },
+            'current',
+          ),
           tx.objectStore('outbox').add({ kind: 'settings' }),
           tx.done,
         ]);
@@ -168,14 +203,32 @@ export class LocalStore {
   }
 
   /**
+   * Notes that these settings are being sent on top of the current version (audit L2), so a
+   * reply that never arrives can be recognised later. Keeps the last 10.
+   */
+  async noteSettingsSent(settings: Settings): Promise<void> {
+    const tx = this.db.transaction('settings', 'readwrite');
+    const current = await tx.store.get('current');
+    if (current)
+      await tx.store.put(
+        { ...current, sent: [...(current.sent ?? []), settings].slice(-10) },
+        'current',
+      );
+    await tx.done;
+  }
+
+  /**
    * After the server answered a flush: remove exactly the outbox items that were sent
-   * (by key, so anything added meanwhile stays), and record the settings outcome.
+   * (by key, so anything added meanwhile stays), keep refused answers queued and marked
+   * (audit L3), and record the settings outcome.
    */
   async confirmSent(input: {
     sentKeys: readonly number[];
+    refusedKeys?: readonly number[];
     settings:
       | { outcome: 'saved'; version: number }
       | { outcome: 'conflict'; server: VersionedSettings | null }
+      | { outcome: 'landed'; server: VersionedSettings }
       | { outcome: 'error' }
       | null;
     notices: readonly string[];
@@ -184,10 +237,24 @@ export class LocalStore {
     const outbox = tx.objectStore('outbox');
     const settingsStore = tx.objectStore('settings');
     for (const n of input.sentKeys) await outbox.delete(n);
+    for (const n of input.refusedKeys ?? []) {
+      const item = await outbox.get(n);
+      if (item?.kind === 'attempt') await outbox.put({ ...item, refused: true });
+    }
     const s = input.settings;
     if (s?.outcome === 'saved') {
       const current = await settingsStore.get('current');
-      if (current) await settingsStore.put({ ...current, version: s.version }, 'current');
+      if (current) await settingsStore.put({ ...settled(current), version: s.version }, 'current');
+    } else if (s?.outcome === 'landed') {
+      // An earlier save whose reply was lost did reach the server (audit L2): build on it.
+      // If she changed settings since, they are sent again on top of it; no conflict.
+      const current = await settingsStore.get('current');
+      if (current) {
+        await settingsStore.put({ ...settled(current), version: s.server.version }, 'current');
+        const queued = (await outbox.getAll()).some((i) => i.kind === 'settings');
+        if (!sameSettings(current.settings, s.server.settings) && !queued)
+          await outbox.add({ kind: 'settings' });
+      }
     } else if (s?.outcome === 'conflict') {
       // Keep the server copy and drop every queued settings change (even one made during
       // the flush: it was based on settings that no longer exist).
@@ -198,6 +265,10 @@ export class LocalStore {
           { settings: s.server.settings, version: s.server.version, isDefault: false },
           'current',
         );
+      else {
+        const current = await settingsStore.get('current');
+        if (current) await settingsStore.put(settled(current), 'current');
+      }
     }
     if (input.notices.length) {
       const meta = tx.objectStore('meta');
@@ -220,11 +291,17 @@ export class LocalStore {
     if (epoch !== this.writeEpoch || this.writing) return false;
     const tx = this.db.transaction(['attempts', 'meta'], 'readwrite');
     const store = tx.objectStore('attempts');
-    for (const { attempt } of rows) if (!(await store.get(attempt.id))) await store.add(attempt);
+    let added = 0;
+    for (const { attempt } of rows)
+      if (!(await store.get(attempt.id))) {
+        await store.add(attempt);
+        added++;
+      }
     const cursor = ((await tx.objectStore('meta').get('cursor')) as number | undefined) ?? 0;
     await tx.objectStore('meta').put(Math.max(cursor, lastSeq), 'cursor');
     await tx.done;
-    if (rows.length) this.changed();
+    // Re-read answers the phone already has change nothing on screen.
+    if (added) this.changed();
     return true;
   }
 
@@ -252,6 +329,19 @@ export class LocalStore {
   close(): void {
     this.db.close();
   }
+}
+
+/** The record without its unanswered sends: the server has now answered (audit L2). */
+function settled(record: SettingsRecord): SettingsRecord {
+  const copy = { ...record };
+  delete copy.sent;
+  return copy;
+}
+
+/** The same settings, field by field (the server's copy may list them in another order). */
+export function sameSettings(a: Settings, b: Settings): boolean {
+  const keys = Object.keys(a) as (keyof Settings)[];
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
 }
 
 export function errorText(e: unknown): string {

@@ -14,6 +14,8 @@ export interface AppEnv {
   rng: Rng;
   /** Opened from the Home Screen icon (an installed app), not a browser tab. */
   installed: boolean;
+  /** This device's time zone (default: the browser's). Settings offers it if different. */
+  deviceTimeZone?: () => string;
 }
 
 export interface AppDeps {

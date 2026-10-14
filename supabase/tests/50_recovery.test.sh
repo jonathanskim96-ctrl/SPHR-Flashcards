@@ -22,7 +22,7 @@ commit;
 begin;
 select tests.login('$U') \gset
 select public.apply_changes((:'export'::jsonb) -> 'attempts', (:'export'::jsonb) -> 'settings', null) as r \gset
-select public.save_push_subscription('https://push.example.test/r1', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1') \gset
+select public.save_push_subscription('https://web.push.apple.com/r1', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1') \gset
 commit;
 create table tests.snap_settings as select * from public.settings where user_id = '$U';
 create table tests.snap_push as select * from public.push_subscriptions where user_id = '$U';
@@ -73,8 +73,11 @@ echo "$OUT" | grep -q "questions|fake2-q10|skipped: changed again after the wind
 
 psql_as postgres <<SQL
 do \$\$ begin
-  assert (select to_jsonb(s) from public.settings s where user_id = '$U')
-       = (select to_jsonb(s) from tests.snap_settings s), 'settings not restored';
+  assert (select to_jsonb(s) - 'version' - 'updated_at' from public.settings s where user_id = '$U')
+       = (select to_jsonb(s) - 'version' - 'updated_at' from tests.snap_settings s), 'settings not restored';
+  -- A new, higher version, never one a phone may already hold (audit L11).
+  assert (select version from public.settings where user_id = '$U')
+       > (select version from tests.snap_settings), 'restored settings reuse an old version';
   assert (select to_jsonb(p) from public.push_subscriptions p where user_id = '$U')
        = (select to_jsonb(p) from tests.snap_push p), 'subscription not restored';
   assert (select count(*) from public.questions) = 19, 'questions not all back';

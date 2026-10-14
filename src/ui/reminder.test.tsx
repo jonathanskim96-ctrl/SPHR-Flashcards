@@ -273,7 +273,13 @@ describe('Home: the one-time reminder card', () => {
   it('Not now: a failed save is shown, not swallowed (audit L10)', async () => {
     const { user } = await harness();
     const card = await screen.findByRole('region', { name: 'Daily reminder offer' });
-    vi.spyOn(LocalStore.prototype, 'setMeta').mockRejectedValueOnce(new Error('disk full'));
+    // Only the card's own save fails (the app saves other things on the phone meanwhile).
+    const setMeta = LocalStore.prototype.setMeta;
+    vi.spyOn(LocalStore.prototype, 'setMeta').mockImplementation(function (this: LocalStore, m) {
+      return 'reminderOfferDone' in m
+        ? Promise.reject(new Error('disk full'))
+        : setMeta.call(this, m);
+    });
     await user.click(within(card).getByRole('button', { name: 'Not now' }));
     expect((await within(card).findByRole('alert')).textContent).toContain(
       'Could not save: disk full',

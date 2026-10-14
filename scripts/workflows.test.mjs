@@ -78,6 +78,33 @@ test('the secret key is only used by the import and keep-alive workflows', () =>
       assert.doesNotMatch(text(f), /SUPABASE_SECRET_KEY/, `${f} must not use the secret`);
 });
 
+test('variables are shape-checked in an if: before any step can print them (audit M4)', () => {
+  for (const [f, vars] of [
+    ['deploy.yml', ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_VAPID_PUBLIC_KEY']],
+    ['import-questions.yml', ['VITE_SUPABASE_URL']],
+    ['keepalive.yml', ['VITE_SUPABASE_URL']],
+  ]) {
+    const t = text(f);
+    const check = t.indexOf('- name: Check the repository variables');
+    assert.ok(check > 0, `${f} has no variable check`);
+    for (const v of vars) {
+      const firstUse = t.indexOf(`\${{ vars.${v} }}`);
+      assert.ok(firstUse === -1 || firstUse > check, `${f}: ${v} is used before the check`);
+      assert.match(t.slice(check), new RegExp(`if: >-[\\s\\S]*vars\\.${v}`), `${f}: ${v}`);
+    }
+    assert.match(t, /'sb_publishable_'|'https:\/\/'/);
+  }
+  assert.match(
+    text('deploy.yml'),
+    /startsWith\(vars\.VITE_SUPABASE_PUBLISHABLE_KEY, 'sb_publishable_'\)/,
+  );
+});
+
+test('the secret is only reachable through the main-only environment (audit L16)', () => {
+  for (const f of ['import-questions.yml', 'keepalive.yml'])
+    assert.match(text(f), /^ {4}environment: supabase-admin$/m, f);
+});
+
 test('actionlint (when installed) accepts every workflow', (t) => {
   const r = spawnSync(
     'actionlint',

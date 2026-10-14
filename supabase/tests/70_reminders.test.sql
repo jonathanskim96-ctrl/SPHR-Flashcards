@@ -13,9 +13,9 @@ select tests.login('00000000-0000-4000-8000-0000000000a7') \gset
 do $$ begin
   perform public.apply_changes('[]'::jsonb,
     tests.settings() || '{"reminderEnabled": true, "reminderTime": "15:00"}'::jsonb, null);
-  perform public.save_push_subscription('https://push.example.test/a7-phone', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
-  perform public.save_push_subscription('https://push.example.test/a7-ipad', 'BPkbbbbbbbbbbbbbbbbb', 'authsecret2');
-  perform public.disable_push_subscription('https://push.example.test/a7-ipad');
+  perform public.save_push_subscription('https://web.push.apple.com/a7-phone', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
+  perform public.save_push_subscription('https://web.push.apple.com/a7-ipad', 'BPkbbbbbbbbbbbbbbbbb', 'authsecret2');
+  perform public.disable_push_subscription('https://web.push.apple.com/a7-ipad');
 
   -- The app can never touch the log or the server's bookkeeping columns.
   perform tests.expect_error($q$select * from public.reminder_log$q$, '%permission denied%');
@@ -57,7 +57,7 @@ begin
     select id, endpoint, p256dh, auth, failure_count from public.push_subscriptions
     where user_id = '00000000-0000-4000-8000-0000000000a7' and disabled_at is null) t;
   assert v_rows = 1, format('expected one active device (the iPad is disabled), got %s', v_rows);
-  select id into v_dev from public.push_subscriptions where endpoint = 'https://push.example.test/a7-phone';
+  select id into v_dev from public.push_subscriptions where endpoint = 'https://web.push.apple.com/a7-phone';
 
   -- claimDay(): POST reminder_log; a second claim for the same local date is refused (23505).
   insert into public.reminder_log (user_id, local_date)
@@ -73,11 +73,16 @@ begin
     values ('00000000-0000-4000-8000-0000000000a7', '2026-10-14');
 
   -- markSent / markFailed / markGone: PATCH push_subscriptions?id=eq.<id>
-  update public.push_subscriptions set last_success_at = now() where id = v_dev;
+  -- (since the audit, markSent also resets the failures and the 10th failure in a row
+  -- sets disabled_at in the same PATCH)
+  update public.push_subscriptions set failure_count = 4 where id = v_dev;
+  update public.push_subscriptions set last_success_at = now(), failure_count = 0 where id = v_dev;
+  assert (select failure_count = 0 from public.push_subscriptions where id = v_dev), 'reset stuck';
   update public.push_subscriptions set failure_count = 1 where id = v_dev;
   update public.push_subscriptions set disabled_at = now() where id = v_dev;
   assert (select disabled_at is not null and failure_count = 1 and last_success_at is not null
           from public.push_subscriptions where id = v_dev), 'device updates stuck';
+  update public.push_subscriptions set failure_count = 10, disabled_at = now() where id = v_dev;
 
   -- The function never deletes (a gone device is disabled); nothing may truncate.
   perform tests.expect_error($q$truncate public.reminder_log$q$, '%permission denied%');
@@ -88,17 +93,17 @@ reset role;
 do $$ begin
   assert (select count(*) from public.safety_log
           where table_name = 'push_subscriptions' and op = 'UPDATE'
-            and old_row ->> 'endpoint' = 'https://push.example.test/a7-phone'
-            and db_user = 'service_role') = 3,
-    'the three service-role updates were not logged';
+            and old_row ->> 'endpoint' = 'https://web.push.apple.com/a7-phone'
+            and db_user = 'service_role') = 5,
+    'the five service-role updates were not logged';
 end $$;
 
 -- The phone opens the app again: save_push_subscription re-enables the device.
 select tests.login('00000000-0000-4000-8000-0000000000a7') \gset
 do $$ begin
-  perform public.save_push_subscription('https://push.example.test/a7-phone', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
+  perform public.save_push_subscription('https://web.push.apple.com/a7-phone', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
   assert (select disabled_at is null from public.push_subscriptions
-          where endpoint = 'https://push.example.test/a7-phone'), 're-saving re-enables the device';
+          where endpoint = 'https://web.push.apple.com/a7-phone'), 're-saving re-enables the device';
 end $$;
 reset role;
 rollback;

@@ -14,7 +14,7 @@ do $$
 declare r jsonb; big jsonb;
 begin
   perform public.apply_changes(jsonb_build_array(tests.att(201), tests.att(202)), tests.settings(), null);
-  perform public.save_push_subscription('https://push.example.test/a2', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
+  perform public.save_push_subscription('https://web.push.apple.com/a2', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
 
   -- Forging the owner of a row.
   perform tests.expect_error($q$insert into public.attempts (id, user_id, question_id, revision, answer_fp, correct, xp, mode, response, answered_at)
@@ -82,10 +82,12 @@ begin
   perform tests.expect_error($q$update public.settings set exam_date = '2101-01-01'$q$, '%check constraint%');
 
   -- Push endpoints must be https and of sane size.
-  perform tests.expect_error($q$select public.save_push_subscription('http://push.example.test/x', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1')$q$, '%check constraint%');
-  perform tests.expect_error($q$select public.save_push_subscription('javascript:alert(1)', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1')$q$, '%check constraint%');
-  perform tests.expect_error(format('select public.save_push_subscription(%L, ''BPkaaaaaaaaaaaaaaaaa'', ''authsecret1'')', 'https://x.test/' || repeat('a', 1100)), '%check constraint%');
-  perform tests.expect_error($q$select public.save_push_subscription('https://push.example.test/k', 'bad key!', 'authsecret1')$q$, '%check constraint%');
+  -- Since 0004 the push-service check refuses these before the table's own check does
+  -- (90_audit.test.sql shows the table check still holds on its own).
+  perform tests.expect_error($q$select public.save_push_subscription('http://web.push.apple.com/x', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1')$q$, '%push address refused%');
+  perform tests.expect_error($q$select public.save_push_subscription('javascript:alert(1)', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1')$q$, '%push address refused%');
+  perform tests.expect_error(format('select public.save_push_subscription(%L, ''BPkaaaaaaaaaaaaaaaaa'', ''authsecret1'')', 'https://web.push.apple.com/' || repeat('a', 1100)), '%check constraint%');
+  perform tests.expect_error($q$select public.save_push_subscription('https://web.push.apple.com/k', 'bad key!', 'authsecret1')$q$, '%check constraint%');
 
   -- SQL-injection-shaped text is stored as plain data.
   r := public.apply_changes(jsonb_build_array(jsonb_set(tests.att(400), '{response}',
@@ -93,7 +95,7 @@ begin
   assert r ->> 'inserted' = '1', r::text;
   assert (select response ->> 'input' from public.attempts where id = (tests.att(400) ->> 'id')::uuid)
          = 'x''); drop table public.attempts; --';
-  perform public.save_push_subscription('https://push.example.test/q?a='');drop table x;--', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
+  perform public.save_push_subscription('https://web.push.apple.com/q?a='');drop table x;--', 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1');
   assert to_regclass('public.attempts') is not null;
 end $$;
 
@@ -114,12 +116,12 @@ begin
 
   -- Mass-delete cap: 6 push subscriptions in one statement is refused; 5 is allowed.
   insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
-  select '00000000-0000-4000-8000-0000000000b2', 'https://push.example.test/m' || g, 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1'
+  select '00000000-0000-4000-8000-0000000000b2', 'https://web.push.apple.com/m' || g, 'BPkaaaaaaaaaaaaaaaaa', 'authsecret1'
   from generate_series(1, 11) g;
-  perform tests.expect_error($q$delete from public.push_subscriptions where endpoint like 'https://push.example.test/m%' and endpoint not like '%/m1_'$q$, '%limit 5%');
-  perform tests.expect_error($q$delete from public.push_subscriptions where endpoint like 'https://push.example.test/m%'$q$, '%limit 5%');
-  delete from public.push_subscriptions where endpoint in (select 'https://push.example.test/m' || g from generate_series(1, 5) g);
-  assert (select count(*) from public.push_subscriptions where endpoint like 'https://push.example.test/m%') = 6;
+  perform tests.expect_error($q$delete from public.push_subscriptions where endpoint like 'https://web.push.apple.com/m%' and endpoint not like '%/m1_'$q$, '%limit 5%');
+  perform tests.expect_error($q$delete from public.push_subscriptions where endpoint like 'https://web.push.apple.com/m%'$q$, '%limit 5%');
+  delete from public.push_subscriptions where endpoint in (select 'https://web.push.apple.com/m' || g from generate_series(1, 5) g);
+  assert (select count(*) from public.push_subscriptions where endpoint like 'https://web.push.apple.com/m%') = 6;
   assert (select count(*) from public.safety_log where table_name = 'push_subscriptions' and op = 'DELETE') = 5;
   perform tests.expect_error('delete from public.safety_log', '%not allowed%');
   perform tests.expect_error('update public.safety_log set db_user = ''x''', '%not allowed%');

@@ -4,19 +4,22 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-14)
 
-- **Security and bug audit (2026-10-14), branch `claude/happy-thompson-b923a5`, not merged.**
-  Full findings: `docs/SECURITY_AUDIT.md`. No critical or high findings; no secret ever
-  committed; `npm audit` 0. Fixed directly (behaviour-neutral, each with a test that fails
-  without it): M4 build check (a secret in `VITE_SUPABASE_PUBLISHABLE_KEY` or
-  `VITE_VAPID_PUBLIC_KEY` stops the build without printing it), L6 reminder switch no longer
-  puts back a time chosen while it turns on, L9 Study fields kept when the reminder changes,
-  L10 three swallowed errors now shown (sign-out check, Dismiss, "Not now"), L17 screen tests
-  wait up to 10 s (`tests/setup.ts`). **Waiting for the owner's decisions:** M1, M2, M3, M4
-  workflow part, M5, M6, L1–L5, L7, L8, L11–L14, L16 (options in the audit file; answers go
-  in §2). **Not done:** the black-box review and the browser/local-database penetration
-  tests (the agent's instructions were cut off by a safety filter; see the audit file).
-  **Owner checks on the live system** (read-only): Michelle's time zone in Settings, the
-  Supabase sign-up/anonymous switches, read-only SQL checks, export on the iPhone.
+- **Security and bug audit (2026-10-14), branch `claude/happy-thompson-b923a5`, NOT merged.**
+  Findings and fixes: `docs/SECURITY_AUDIT.md` (no critical or high; no secret ever
+  committed; `npm audit` 0). The owner approved every recommended option (§2); **all are
+  built and tested on the branch**: sync re-reads late answers (M1), Mistakes count (M2),
+  stricter migration checker (M3), key-shape checks in the build and the workflows (M4),
+  iPhone export via the share sheet (M5), "Use this phone's time zone" (M6), two-tab
+  sign-out (L1), lost-reply settings (L2), refused answers kept (L3), import account check,
+  batch and "Importing…" (L4, L5), reminder/Study-field/error fixes (L6, L9, L10), stricter
+  bank validator (L7), matching drop (L8), recovery version (L11), **migration
+  `0004_audit_hardening.sql`** (L12, L13, L14, L15), reminder function: push-service check,
+  10-failures rule, no addresses in logs (L13, I2), secret in the `supabase-admin`
+  environment (L16), test wait (L17). **Not done:** the black-box review and browser/local
+  penetration tests (the agent's instructions were cut off by a safety filter). **Waiting
+  for the owner, in this order:** OK to merge → export on her phone → run `0004` in the SQL
+  editor → redeploy `send-reminders` → move the secret into the environment → the
+  read-only checks (time zone, sign-up switches, SQL, iPhone export). See §3 item 20.
 - **LIVE (2026-10-14), declared by the owner before the iPhone install.** All phases
   approved and on `main`. Done: SETUP A1–A4, B1–B9 (migrations 0001–0003 run, sign-ups off,
   Michelle's account, reminder secrets with a **new** VAPID pair made 2026-10-14 because the
@@ -289,6 +292,7 @@ Decided in the planning session (2026-10-13):
 | Phase 9 | **Approved** 2026-10-14 and merged into `main` at the owner's request; no new product decisions (matching drag and the midnight reset were already in the plan) |
 | Late reminder | **Up to 1 hour late, once**, when the run at her chosen time fails or she picks a time that has just passed (the alternative, skipping that day, was declined). `CATCH_UP_MS` in `supabase/functions/send-reminders/index.ts` (decided 2026-10-13, Phase 7) |
 | Phase 6 choices | **App icon:** white "SPHR" letters on the app's green. **Safari (not installed):** the "Add to Home Screen" steps card appears at the top of Settings only, in place of the reminder switch; Home is unchanged (decided 2026-10-13) |
+| Audit 2026-10-14 | **All recommended options (A)** for every item in `docs/SECURITY_AUDIT.md` (owner, 2026-10-14): M1 pull re-reads an overlap; M2 Mistakes counts only cards she can practise today; M3 stricter migration checker; M4 workflow variable-shape step; M5 iPhone share sheet, "Last export" only on success; M6 "Use this phone's time zone?" offer; L1 other tabs close, sign-out refused when blocked; L2 own save recognised; L3 refused answers kept, retried, block sign-out; L4 account check on import; L5 one batch + "Importing…"; L7 stricter validator; L8 pair only on a prompt; L11 recovery raises the settings version; L12/L13/L15 migration `0004`; L13 function-side push host check; L14 anonymous accounts refused by policy (and the switches checked); L16 secret in a `main`-only Environment |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
 Design choices made in planning (no product trade-off, but worth knowing):
@@ -473,12 +477,16 @@ changing):
    the app roles may be allowed to create objects in the `public` schema, but the API
    (PostgREST) cannot run such statements, so this is not reachable from the app.
 
-20. **Audit 2026-10-14 decisions pending** (`docs/SECURITY_AUDIT.md`): M1 missed answers
-   between two phones; M2 Mistakes loop; M3 migration checker gaps; M4 workflow variable
-   check; M5 iPhone export; M6 time zone; L1 two-tab sign-out; L2 false settings conflict;
-   L3 refused answers; L4 import account check; L5 import speed; L7 validator gaps; L8
-   matching drop; L11 recovery version; L12 direct table writes; L13 push endpoints; L14
-   sign-up switches; L16 secret scoped to `main`. L15 goes into the next migration.
+20. **Audit 2026-10-14: owner steps after the merge** (nothing below is done yet):
+   (a) export on Michelle's phone; (b) run migration `0004` in the SQL editor (additive;
+   refuses push addresses that aren't push services, so check (e) first if unsure);
+   (c) redeploy `send-reminders` with the new `index.ts` (B8 steps 1–4, editing the existing
+   function); (d) create the `supabase-admin` environment, put `SUPABASE_SECRET_KEY` in it,
+   delete the repository secret, then run "Keep Supabase awake" by hand (SETUP A4);
+   (e) read-only checks: Michelle's time zone in Settings, sign-up and anonymous sign-in
+   switches off, the SQL in the audit report, export saves a file on the iPhone.
+   Not done (needs Michelle's account id, optional): a policy that only her account may
+   use the tables.
 
 **Unverified facts (confirm during SETUP)**
 17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the

@@ -68,6 +68,17 @@ begin
                          t.name, cols, cols, t.name, t.pk) using c.before_row, c.row_key;
         end if;
       end if;
+      -- Restored settings get a NEW version number, higher than any this row ever had, so a
+      -- phone holding an old copy can't mistake it for the one it has (audit L11).
+      if t.name = 'settings' and action like 'restored%' and not w.dry_run then
+        update public.settings set updated_at = now(), version = 1 + greatest(
+          coalesce((cur ->> 'version')::int, 0),
+          (select coalesce(max(greatest((l.old_row ->> 'version')::int,
+                                        coalesce((l.new_row ->> 'version')::int, 0))), 0)
+           from public.safety_log l
+           where l.table_name = 'settings' and l.old_row ->> 'user_id' = c.row_key))
+        where user_id::text = c.row_key;
+      end if;
       insert into recovery_result values (t.name, c.row_key,
         case when w.dry_run then 'WOULD BE ' || action else action end);
     end loop;

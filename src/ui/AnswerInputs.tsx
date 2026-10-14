@@ -3,6 +3,7 @@
 // only when the response is not null. All text is rendered as React text nodes.
 import {
   closestCenter,
+  rectIntersection,
   DndContext,
   KeyboardSensor,
   MouseSensor,
@@ -412,7 +413,9 @@ function MatchingInput({ q, order, disabled, onChange }: InputProps<MatchingQues
     pair(promptId, optionId);
   }
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+    // Paired only when let go on a prompt: a drag released anywhere else does nothing
+    // (audit L8; "closest" would pair it with the nearest prompt, even undoing a right pair).
+    <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragEnd={onDragEnd}>
       <p className="muted">
         Tap an item, then tap its match (or drag the match onto it). Tap a pair to undo it.
       </p>

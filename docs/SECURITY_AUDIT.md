@@ -40,30 +40,56 @@ was found where an answer that reached the server is lost or duplicated **on the
 
 | ID | Severity | Title | Changes app behaviour? | Migration? | Status |
 |---|---|---|---|---|---|
-| M1 | medium | A phone can miss answers made on another phone at the same moment, forever | no | option | ask owner |
-| M2 | medium | "Mistakes (N)" leads to an endless "All caught up" loop after a wrong answer today | yes | no | ask owner |
-| M3 | medium | The migration checker lets most destructive SQL through | no (CI only) | no | ask owner |
-| M4 | medium | A secret pasted into a public key variable would be published | no | no | build check fixed; workflow part: ask |
-| M5 | medium (unconfirmed) | Export on the iPhone app may save no file but still say "Last export: today" | yes | no | ask owner |
-| M6 | medium (unconfirmed) | The account's time zone comes from whichever device signed in first; the app can't change it | yes | no | owner check, then ask |
-| L1 | low | Sign-out with a second tab open: says it failed, but later answers in that tab are deleted | yes | no | ask owner |
-| L2 | low | A lost reply to a settings save gives a false "changed on another device" and drops a newer change | yes | no | ask owner |
-| L3 | low | Answers the server refused (phone clock > 1 day fast) are deleted on sign-out | yes | no | ask owner |
-| L4 | low | Import has no account check and can't be undone | yes | no | ask owner |
-| L5 | low | Importing thousands of answers redraws everything per answer (slow, no busy state) | yes | no | ask owner |
+| M1 | medium | A phone can miss answers made on another phone at the same moment, forever | no | option | **fixed** |
+| M2 | medium | "Mistakes (N)" leads to an endless "All caught up" loop after a wrong answer today | yes | no | **fixed** |
+| M3 | medium | The migration checker lets most destructive SQL through | no (CI only) | no | **fixed** |
+| M4 | medium | A secret pasted into a public key variable would be published | no | no | **fixed** |
+| M5 | medium (unconfirmed) | Export on the iPhone app may save no file but still say "Last export: today" | yes | no | **fixed** |
+| M6 | medium (unconfirmed) | The account's time zone comes from whichever device signed in first; the app can't change it | yes | no | **fixed** |
+| L1 | low | Sign-out with a second tab open: says it failed, but later answers in that tab are deleted | yes | no | **fixed** |
+| L2 | low | A lost reply to a settings save gives a false "changed on another device" and drops a newer change | yes | no | **fixed** |
+| L3 | low | Answers the server refused (phone clock > 1 day fast) are deleted on sign-out | yes | no | **fixed** |
+| L4 | low | Import has no account check and can't be undone | yes | no | **fixed** |
+| L5 | low | Importing thousands of answers redraws everything per answer (slow, no busy state) | yes | no | **fixed** |
 | L6 | low | Turning the reminder on overwrites settings changed meanwhile | no | no | **fixed** |
-| L7 | low | The bank validator accepts files the app then refuses or partly drops | no | no | ask owner |
-| L8 | low (unconfirmed) | Matching: a drag released outside any prompt still pairs with the nearest prompt | yes | no | ask owner |
+| L7 | low | The bank validator accepts files the app then refuses or partly drops | no | no | **fixed** |
+| L8 | low (unconfirmed) | Matching: a drag released outside any prompt still pairs with the nearest prompt | yes | no | **fixed** |
 | L9 | low | Unsaved Study fields are wiped when the reminder or a sync changes settings | no | no | **fixed** |
 | L10 | low | Some errors are swallowed instead of shown | no | no | **fixed** |
-| L11 | low | The recovery script can put `settings.version` back to an old number | no | no | ask owner |
-| L12 | low | The database lets the signed-in account write tables directly, skipping `apply_changes` | no | yes | ask owner |
-| L13 | low | Any https address is accepted as a push endpoint; the reminder function then sends to it | slightly | yes | ask owner |
-| L14 | low | "One user only" rests on two Supabase dashboard switches | no | option | owner check |
-| L15 | low | Default privileges don't stop future functions being callable by everyone | no | yes (next one) | with next migration |
-| L16 | low | `SUPABASE_SECRET_KEY` is usable by a workflow on any branch | no | no | ask owner |
+| L11 | low | The recovery script can put `settings.version` back to an old number | no | no | **fixed** |
+| L12 | low | The database lets the signed-in account write tables directly, skipping `apply_changes` | no | yes | **fixed** |
+| L13 | low | Any https address is accepted as a push endpoint; the reminder function then sends to it | slightly | yes | **fixed** (owner runs 0004 and redeploys the function) |
+| L14 | low | "One user only" rests on two Supabase dashboard switches | no | option | **fixed** (owner still checks the two switches) |
+| L15 | low | Default privileges don't stop future functions being callable by everyone | no | yes (next one) | **fixed** |
+| L16 | low | `SUPABASE_SECRET_KEY` is usable by a workflow on any branch | no | no | **fixed** (owner moves the secret) |
 | L17 | low | A Settings screen test fails when the machine is busy (1-second wait) | no | no | **fixed** |
-| I1–I5 | info | see below | | | noted |
+| I1–I5 | info | see below | | | I2 fixed; others noted |
+
+## Fixes (2026-10-14)
+
+The owner approved the recommended option (A) for every item. All are fixed on this branch;
+each fix has tests that fail without it (checked by removing the fix), except where noted.
+
+| ID | What changed | Tests |
+|---|---|---|
+| M1 | Each pull re-reads answers below the cursor until they are a minute old (at most 1,000 back), so a save that commits late is still found; already-known answers are skipped and cause no screen update. Phones from before re-read everything once. (`src/data/sync.ts`, `store.ts`, `db.ts`) | `sync.test.ts` "appears late, below the cursor", "pulls start where nothing more can appear" |
+| M2 | "Mistakes (N)" counts only cards she can practise today and is hidden at 0, so it never opens an empty lesson. (`src/ui/Home.tsx`) | `App.test.tsx` "no Practice Mistakes loop"; `e2e/days.spec.ts` rewritten for the new rule |
+| M3 | The migration checker also catches `do` blocks, disabled triggers/RLS, `create or replace`, rules, `merge`, `session_replication_role`, `security definer`, `alter function/policy/role`, table-wide grants, hidden deletes inside `create … as`; it parses `E''` strings, quoted names and `$` in names; the approval comment must be a line of its own above the statement. The three applied migrations are pinned by content and keep passing. (`scripts/check-migrations.mjs`) | `check-migrations.test.mjs` (all 21 audit cases + approved forms + ordinary migrations) |
+| M4 | Build: `checkPublicKeys` (earlier). Workflows: a first step stops deploy, import and keep-alive, without printing anything, unless the URL is `https://….supabase.co`, the key starts `sb_publishable_` and the VAPID key starts `B`. GitHub expressions can't measure length, so a VAPID private key that happens to start with `B` is caught only by the build check. | `workflows.test.mjs`, `csp.test.mjs` |
+| M5 | In the installed app, Export uses the share sheet ("Save to Files"); "Last export" is recorded only when it completes; cancelling says so. In a browser tab the download link is revoked after a minute instead of at once. INSTALL §5 checks it on the phone. (`src/ui/Settings.tsx`) | `Settings.test.tsx` "share sheet", "cleaned up a minute later" |
+| M6 | Settings → Study shows "This phone is in X, but your study days and reminder use Y" with **Use this phone's time zone** when they differ (only zones the validator accepts). Saved through the normal write path. | `Settings.test.tsx` "time zone (audit M6)" |
+| L1 | Every open copy closes its local data as soon as another tab starts a sign-out and goes to the sign-in screen ("You signed out in another tab or window."). Sign-out deletes the local data first, then signs out; if an older open copy blocks the delete, Settings says it is waiting and finishes when that copy closes. Offline, the account is signed out on this phone. (`src/data/db.ts`, `session.ts`, `src/App.tsx`, `src/ui/auth.ts`) | `session.test.ts` (second tab, older copy, listeners), `store.test.ts`, `auth.test.ts`, `App.test.tsx` |
+| L2 | The phone remembers settings it sent whose reply never came; if the server later reports a "conflict" with exactly one of those, it was our own save: no notice, and a newer change is sent on top. A real change elsewhere is still a conflict. | `sync.test.ts` three "audit L2" tests, `store.test.ts` |
+| L3 | A refused answer stays in the outbox (marked), so sign-out still waits for it; it is offered again once per sync (after new answers, never holding them up) and backs up once the server accepts it; the notice is shown once. | `sync.test.ts` two "audit L3" tests |
+| L4 | New exports carry a 16-digit fingerprint of the account (not its id). The import preview warns about a file from another account (Import needs "Import anyway") and about answers for questions not in the app. Old files import as before. RECOVERY §4 step 4 says to tick it after a project rebuild. | `exportImport.test.ts`, `Settings.test.tsx`, `e2e/sync.spec.ts` |
+| L5 | Import saves all answers in one `guardedWrite` (`kind: 'attempts'`: every answer checked first, one transaction, one screen update) with "Importing N answers…" and the buttons disabled meanwhile. | `store.test.ts`, `Settings.test.tsx` |
+| L6, L9, L10, L17 | Fixed in the first round (below). | |
+| L7 | The validator also checks the `bankVersion` format, level points (whole 0–3), area ids and names, text ids and text in every choices/items/prompts/options list, a finite tolerance; with `--previous`, any change needs a higher `bankVersion`, changed content needs a raised revision, and a revision never goes down (the database import's rules). | `validate-bank.test.mjs` (9 new) |
+| L8 | Matching pairs only when the dragged option is let go overlapping a prompt (`rectIntersection`). `pointerWithin` was tried first and broke real touch drags in the browser test, so it was not used. | `e2e/questions.spec.ts` "let go away from every prompt pairs nothing" |
+| L11 | Restored settings get a new version, one higher than any the row ever had. RECOVERY.md §5 updated (its copy is checked by a test). | `50_recovery.test.sh` |
+| L12, L13, L14, L15 | Migration `0004_audit_hardening.sql` (additive): direct answer inserts get `attempt_problem`'s checks and a 200-per-statement cap; app updates to settings always raise the version by one; push addresses must be Apple/Microsoft/Google/Mozilla push services (also in the app validator and the function) and at most 10 devices can be on; restrictive policies refuse anonymous sign-ins on every app table; new functions are not executable by everyone by default and the service role gets no TRUNCATE on new tables. The reminder function also skips and turns off a non-push address, turns a device off after 10 failures in a row and resets the count after a success. Not done: limiting the tables to Michelle's own account id (needs her id; the dashboard switches are the main lock). | `90_audit.test.sql` (new; fails without `0004`), `30_attack`, `70_reminders`, contract boundary cases, Deno tests |
+| L16 | `import-questions.yml` and `keepalive.yml` run in the `supabase-admin` environment; the owner moves the secret there (steps in the chat; SETUP A4 updated). | `workflows.test.mjs` |
+| I2 | The function's error lines replace any web address with its host. | Deno "never puts the push address in the log" |
 
 ## Findings
 

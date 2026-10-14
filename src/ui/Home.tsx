@@ -39,15 +39,22 @@ function saveSelection(s: Selection) {
   }
 }
 
+/**
+ * Mistakes cards she can practise now: the same cards a Mistakes lesson would offer, so a card
+ * answered today (it waits until tomorrow) is not counted (audit M2, owner's decision).
+ */
 export function mistakesCount(study: Study, selection: Selection): number {
   if (!study.bank) return 0;
-  return study.bank.questions.filter(
-    (q) =>
+  return study.bank.questions.filter((q) => {
+    const s = stateOf(study.states, q.id);
+    return (
       q.status === 'active' &&
       selection.areas.includes(q.area) &&
       selection.tiers.includes(q.level) &&
-      stateOf(study.states, q.id).inMistakes,
-  ).length;
+      s.inMistakes &&
+      s.lastAnswered !== study.today
+    );
+  }).length;
 }
 
 const RING_R = 34;
@@ -204,13 +211,15 @@ export function Home({
             <button type="button" className="btn big" onClick={() => onStart('lesson', selection)}>
               Start lesson
             </button>
-            <button
-              type="button"
-              className="btn secondary"
-              onClick={() => onStart('mistakes', selection)}
-            >
-              Mistakes ({mistakes})
-            </button>
+            {mistakes > 0 && (
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => onStart('mistakes', selection)}
+              >
+                Mistakes ({mistakes})
+              </button>
+            )}
           </div>
         </>
       )}

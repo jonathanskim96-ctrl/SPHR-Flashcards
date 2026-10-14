@@ -192,6 +192,12 @@ export interface PushSubscriptionKeys {
 
 const KEY_RE = /^[A-Za-z0-9_=-]+$/;
 const MAX_ENDPOINT_BYTES = 1024;
+/**
+ * Push addresses must belong to a real push service (audit L13): Apple, Microsoft, Google or
+ * Mozilla. The same list is in migration 0004 (`is_push_endpoint`) and the reminder function.
+ */
+export const PUSH_ENDPOINT_RE =
+  /^https:\/\/(([a-z0-9-]+\.)*(push\.apple\.com|notify\.windows\.com)|fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com)\//;
 
 /** A browser push subscription as saved by `save_push_subscription` (mirrors the table checks). */
 export function validateSubscription(v: unknown): Result<PushSubscriptionKeys> {
@@ -200,11 +206,13 @@ export function validateSubscription(v: unknown): Result<PushSubscriptionKeys> {
   const { endpoint, p256dh, auth } = v;
   if (
     typeof endpoint !== 'string' ||
-    !endpoint.startsWith('https://') ||
+    !PUSH_ENDPOINT_RE.test(endpoint) ||
     unstorable(endpoint) ||
     new TextEncoder().encode(endpoint).length > MAX_ENDPOINT_BYTES
   )
-    errors.push(`endpoint must be an https address of at most ${MAX_ENDPOINT_BYTES} bytes`);
+    errors.push(
+      `endpoint must be a push service's https address of at most ${MAX_ENDPOINT_BYTES} bytes`,
+    );
   if (
     typeof p256dh !== 'string' ||
     !KEY_RE.test(p256dh) ||

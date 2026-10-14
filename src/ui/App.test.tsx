@@ -3,7 +3,8 @@ import 'fake-indexeddb/auto';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App } from '../App';
+import { App, SIGNED_OUT_ELSEWHERE } from '../App';
+import { deleteUserDb } from '../data/db';
 import { Clock, USER } from '../../tests/dataHelpers';
 import { FakeServer } from '../../tests/fakeServer';
 import { attempt, at, fakeBank, q } from '../../tests/helpers';
@@ -105,6 +106,16 @@ describe('sign in', () => {
   });
 });
 
+describe('signed out in another tab (audit L1)', () => {
+  it('goes to the sign-in screen with a message instead of saving into removed data', async () => {
+    const { factory } = await harness();
+    await home();
+    await deleteUserDb(USER, factory); // what sign-out in another tab does
+    expect(await screen.findByText(SIGNED_OUT_ELSEWHERE, { exact: false })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
+  });
+});
+
 describe('Home', () => {
   it('shows XP, the goal ring, five areas with three tiers each and the Mistakes count', async () => {
     await harness();
@@ -112,7 +123,8 @@ describe('Home', () => {
     expect(screen.getByText('0 XP')).toBeTruthy();
     expect(screen.getByRole('img', { name: "Today's goal: 0 of 30 XP" })).toBeTruthy();
     expect(document.querySelectorAll('progress')).toHaveLength(15);
-    expect(screen.getByRole('button', { name: 'Mistakes (0)' })).toBeTruthy();
+    // No Mistakes cards to practise: no Mistakes button (audit M2).
+    expect(screen.queryByRole('button', { name: /^Mistakes/ })).toBeNull();
     for (let n = 1; n <= 5; n++)
       expect(
         screen.getByRole('button', { name: new RegExp(`${n}\\. FAKE Area ${n}`) }),
@@ -302,6 +314,15 @@ describe('All caught up', () => {
     await user.click(screen.getByRole('button', { name: 'Check' }));
     await user.click(await screen.findByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('Lesson complete')).toBeTruthy();
+  });
+
+  it('a card answered wrong today: no Mistakes button and no Practice Mistakes loop (audit M2)', async () => {
+    const { user } = await harness({ seed: [attempt(q01(), false, at('2026-10-13', 19))] });
+    await area1K(user);
+    expect(screen.queryByRole('button', { name: /^Mistakes/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Start lesson' }));
+    expect(await screen.findByText('All caught up')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Practice Mistakes/ })).toBeNull();
   });
 
   it('after a lesson, Keep going with nothing left shows All caught up and Back to Home works', async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import {
   Clock,
@@ -12,7 +12,7 @@ import {
 } from '../../tests/dataHelpers';
 import { attempt, fakeBank, q } from '../../tests/helpers';
 import { dbName, deleteUserDb, openUserDb } from './db';
-import { LocalStore } from './store';
+import { LocalStore, sameSettings } from './store';
 
 const bank = fakeBank();
 
@@ -24,6 +24,34 @@ describe('guardedWrite', () => {
     expect(r).toEqual({ ok: false, errors: ['xp must be a whole number from 0 to 3'] });
     expect(await d.store.attempts()).toEqual([]);
     expect(await d.store.outbox()).toEqual([]);
+  });
+
+  it('saves many answers in one go: all checked first, new ones added once, one screen update (audit L5)', async () => {
+    const d = await device(new FakeServer(), new Clock());
+    const a1 = attempt(q(bank, 'fake1-q01'), true, '2026-10-12T20:00:00Z');
+    const a2 = attempt(q(bank, 'fake1-q02'), false, '2026-10-12T21:00:00Z');
+    await d.store.guardedWrite({ kind: 'attempt', attempt: a1 });
+    let changes = 0;
+    d.store.subscribe(() => changes++);
+    const r = await d.store.guardedWrite({ kind: 'attempts', attempts: [a1, a2, a2] });
+    expect(r).toEqual({ ok: true, added: 1 });
+    expect(changes).toBe(1);
+    expect((await d.store.attempts()).map((a) => a.id).sort()).toEqual([a1.id, a2.id].sort());
+    expect(await d.store.outbox()).toHaveLength(2);
+    // Nothing new: no screen update.
+    expect(await d.store.guardedWrite({ kind: 'attempts', attempts: [a2] })).toEqual({
+      ok: true,
+      added: 0,
+    });
+    expect(changes).toBe(1);
+    // One bad answer: nothing is saved, and it says which.
+    const a3 = attempt(q(bank, 'fake1-q03'), true, '2026-10-12T22:00:00Z');
+    const bad = await d.store.guardedWrite({
+      kind: 'attempts',
+      attempts: [a3, { ...a3, id: 'x' }],
+    });
+    expect(bad.ok === false && bad.errors[0]).toMatch(/^#2: /);
+    expect(await d.store.attempts()).toHaveLength(2);
   });
 
   it('saves the answer and its outbox entry together, in the one timestamp spelling', async () => {
@@ -103,6 +131,8 @@ describe('notices and meta', () => {
     await d.store.dismissNotices();
     expect(await d.store.meta()).toEqual({
       cursor: 0,
+      settled: 0,
+      recent: null,
       lastSyncAt: null,
       lastExportAt: null,
       notices: [],
@@ -169,11 +199,19 @@ describe('one database per user', () => {
     await expect(p2).rejects.toThrow('could not delete local data');
   });
 
-  it('reports a delete blocked by another open tab', async () => {
+  it('a delete blocked by an open connection that ignores the request waits for it', async () => {
     const factory = new IDBFactory();
-    const open = await openUserDb(USER, factory);
-    await expect(deleteUserDb(USER, factory)).rejects.toThrow('another tab');
+    const open = await new Promise<IDBDatabase>((resolve) => {
+      const req = factory.open(dbName(USER), 1);
+      req.onsuccess = () => resolve(req.result);
+    });
+    let blocked = 0;
+    const deleted = deleteUserDb(USER, factory, () => blocked++);
+    await vi.waitFor(() => expect(blocked).toBe(1));
     open.close();
+    await deleted;
+    expect(await factory.databases()).toEqual([]);
+    await deleteUserDb(USER, factory); // nothing left, nothing blocks: fine without a callback
   });
 });
 
@@ -207,6 +245,71 @@ describe('confirmSent', () => {
       notices: [],
     });
     expect(await d.store.settingsRecord()).toBeUndefined();
+  });
+
+  it('without local settings, the audit L2/L3 bookkeeping changes nothing', async () => {
+    const d = await device(new FakeServer(), new Clock());
+    await d.store.noteSettingsSent(settings0());
+    const server = { settings: settings0(), version: 2 };
+    await d.store.confirmSent({
+      sentKeys: [],
+      settings: { outcome: 'landed', server },
+      notices: [],
+    });
+    await d.store.confirmSent({
+      sentKeys: [],
+      settings: { outcome: 'conflict', server: null },
+      notices: [],
+    });
+    // A refused key that is no longer queued (or is not an answer) is skipped.
+    await d.store.saveDefaultSettings(settings0());
+    const [item] = await d.store.outbox();
+    await d.store.confirmSent({
+      sentKeys: [],
+      refusedKeys: [item!.n!, 999],
+      settings: null,
+      notices: [],
+    });
+    expect(await d.store.outbox()).toEqual([{ n: item!.n, kind: 'settings' }]);
+    expect(await d.store.settingsRecord()).toEqual({
+      settings: settings0(),
+      version: null,
+      isDefault: true,
+    });
+  });
+
+  it('an earlier save that landed: a change made meanwhile stays queued once (audit L2)', async () => {
+    const d = await device(new FakeServer(), new Clock());
+    await d.store.saveDefaultSettings(settings0()); // queues one settings change
+    const server = { settings: { ...settings0(), lessonSize: 12 }, version: 1 };
+    await d.store.confirmSent({
+      sentKeys: [],
+      settings: { outcome: 'landed', server },
+      notices: [],
+    });
+    expect((await d.store.outbox()).filter((i) => i.kind === 'settings')).toHaveLength(1);
+    expect(await d.store.settingsRecord()).toMatchObject({ settings: settings0(), version: 1 });
+  });
+
+  it('a conflict without a server copy forgets the unanswered sends', async () => {
+    const d = await device(new FakeServer(), new Clock());
+    await d.store.saveDefaultSettings(settings0());
+    await d.store.noteSettingsSent(settings0());
+    expect((await d.store.settingsRecord())?.sent).toHaveLength(1);
+    await d.store.confirmSent({
+      sentKeys: [],
+      settings: { outcome: 'conflict', server: null },
+      notices: [],
+    });
+    expect((await d.store.settingsRecord())?.sent).toBeUndefined();
+  });
+
+  it('compares settings field by field, in any order', () => {
+    const a = settings0();
+    const reversed = Object.fromEntries(Object.entries(a).reverse()) as typeof a;
+    expect(sameSettings(a, reversed)).toBe(true);
+    expect(sameSettings(a, { ...a, lessonSize: 11 })).toBe(false);
+    expect(sameSettings(a, { ...a, extra: 1 } as typeof a)).toBe(false);
   });
 });
 

@@ -12,7 +12,9 @@ const {
   CATCH_UP_MS,
   createHandler,
   dueReminder,
+  MAX_FAILURES,
   PAYLOAD,
+  PUSH_ENDPOINT_RE,
   runReminders,
   sameSecret,
   slotOf,
@@ -232,9 +234,13 @@ class FakeStore implements Store {
     this.log.add(key);
     return Promise.resolve(true);
   }
-  markSent = (id: string, at: string) => this.patch(id, { lastSuccessAt: at });
+  markSent = (id: string, at: string) => this.patch(id, { lastSuccessAt: at, failureCount: 0 });
   markGone = (id: string, at: string) => this.patch(id, { disabledAt: at });
-  markFailed = (d: Device) => this.patch(d.id, { failureCount: d.failureCount + 1 });
+  markFailed = (d: Device, at: string) =>
+    this.patch(d.id, {
+      failureCount: d.failureCount + 1,
+      ...(d.failureCount + 1 >= MAX_FAILURES ? { disabledAt: at } : {}),
+    });
   private patch(id: string, p: Partial<FakeStore['devices'][number]>) {
     const d = this.devices.find((x) => x.id === id)!;
     Object.assign(d, p);
@@ -243,7 +249,7 @@ class FakeStore implements Store {
   add(id: string) {
     this.devices.push({
       id,
-      endpoint: `https://push.example.test/${id}`,
+      endpoint: `https://web.push.apple.com/${id}`,
       p256dh: 'BPfake-p256dh-key-xxxxxxxx',
       auth: 'fake-auth',
       failureCount: 0,
@@ -288,10 +294,11 @@ Deno.test('sends to every active device, records the day, and marks the results'
       sent: 1,
       gone: 2,
       failed: 1,
+      blocked: 0,
       errors: 1,
     },
   );
-  assertEquals(sum.errors, ['push.example.test: push service answered 503']);
+  assertEquals(sum.errors, ['web.push.apple.com: push service answered 503']);
 });
 
 Deno.test('a second run in the same window (or a repeated call) sends nothing', async () => {
@@ -335,9 +342,71 @@ Deno.test(
     flaky.add('ok');
     const s3 = await runReminders(flaky, () => Promise.reject(new Error('connect timeout')), AT);
     assertEquals([s3.failed, flaky.devices[0]!.failureCount], [1, 1]);
-    assertEquals(s3.errors, ['push.example.test: connect timeout']);
+    assertEquals(s3.errors, ['web.push.apple.com: connect timeout']);
   },
 );
+
+Deno.test(
+  'an address that is not a push service is turned off, never sent to (audit L13)',
+  async () => {
+    const store = new FakeStore();
+    store.add('ok');
+    store.add('evil');
+    store.devices[1]!.endpoint = 'https://169.254.169.254/latest/meta-data/x';
+    const sentTo: string[] = [];
+    const sum = await runReminders(store, (d) => (sentTo.push(d.id), Promise.resolve(201)), AT);
+    assertEquals(sentTo, ['ok']);
+    assertEquals([sum.sent, sum.blocked], [1, 1]);
+    assertEquals(store.devices[1]!.disabledAt, new Date(AT).toISOString());
+    assertEquals(sum.errors, ['169.254.169.254: not a push service; device turned off']);
+    for (const ok of [
+      'https://web.push.apple.com/x',
+      'https://fcm.googleapis.com/fcm/send/x',
+      'https://updates.push.services.mozilla.com/wpush/v2/x',
+      'https://wns2-par02p.notify.windows.com/w/?token=x',
+    ])
+      assert(PUSH_ENDPOINT_RE.test(ok), ok);
+    for (const bad of [
+      'https://web.push.apple.com.evil.test/x',
+      'https://user:pass@web.push.apple.com/x',
+      'https://localhost:5432/',
+      'http://web.push.apple.com/x',
+    ])
+      assert(!PUSH_ENDPOINT_RE.test(bad), bad);
+  },
+);
+
+Deno.test(
+  '10 failures in a row turn a device off; a success resets the count (audit L13)',
+  async () => {
+    const store = new FakeStore();
+    store.add('flaky');
+    const d = store.devices[0]!;
+    d.failureCount = MAX_FAILURES - 2;
+    await runReminders(store, () => Promise.resolve(201), AT);
+    assertEquals([d.failureCount, d.disabledAt], [0, null]); // a success: back to 0
+    d.failureCount = MAX_FAILURES - 1;
+    store.log.clear();
+    await runReminders(store, () => Promise.resolve(503), AT);
+    assertEquals([d.failureCount, d.disabledAt], [MAX_FAILURES, new Date(AT).toISOString()]);
+  },
+);
+
+Deno.test('a network error never puts the push address in the log (audit I2)', async () => {
+  const store = new FakeStore();
+  store.add('secret-path');
+  const sum = await runReminders(
+    store,
+    () =>
+      Promise.reject(
+        new Error(`error sending request for url (${store.devices[0]!.endpoint}): timed out`),
+      ),
+    AT,
+  );
+  assertEquals(sum.errors, [
+    'web.push.apple.com: error sending request for url (web.push.apple.com): timed out',
+  ]);
+});
 
 // ---------------------------------------------------------------------------------------
 // The HTTP handler
@@ -471,7 +540,8 @@ Deno.test('the adapter reads and writes exactly these rows', async () => {
   assertEquals(await store.claimDay(ALICE, '2026-10-13'), true);
   await store.markSent('d1', '2026-10-13T22:00:00.000Z');
   await store.markGone('d1', '2026-10-13T22:00:00.000Z');
-  await store.markFailed(devices[0]!);
+  await store.markFailed(devices[0]!, '2026-10-13T22:00:00.000Z');
+  await store.markFailed({ ...devices[0]!, failureCount: 9 }, '2026-10-13T22:00:00.000Z');
 
   const shape = calls.map((c) => [c.method, c.path.replace('/rest/v1/', ''), c.query, c.body]);
   assertEquals(shape, [
@@ -483,9 +553,20 @@ Deno.test('the adapter reads and writes exactly these rows', async () => {
       null,
     ],
     ['POST', 'reminder_log', '', { user_id: ALICE, local_date: '2026-10-13' }],
-    ['PATCH', 'push_subscriptions', '?id=eq.d1', { last_success_at: '2026-10-13T22:00:00.000Z' }],
+    [
+      'PATCH',
+      'push_subscriptions',
+      '?id=eq.d1',
+      { last_success_at: '2026-10-13T22:00:00.000Z', failure_count: 0 },
+    ],
     ['PATCH', 'push_subscriptions', '?id=eq.d1', { disabled_at: '2026-10-13T22:00:00.000Z' }],
     ['PATCH', 'push_subscriptions', '?id=eq.d1', { failure_count: 3 }],
+    [
+      'PATCH',
+      'push_subscriptions',
+      '?id=eq.d1',
+      { failure_count: 10, disabled_at: '2026-10-13T22:00:00.000Z' },
+    ],
   ]);
   // Every request carries the service-role key (server-side only).
   for (const c of calls) assertEquals(c.auth, 'Bearer service-role-key-fake');
@@ -510,7 +591,8 @@ Deno.test(
       () => broken.claimDay(ALICE, '2026-10-13'),
       () => broken.markSent('d1', 'x'),
       () => broken.markGone('d1', 'x'),
-      () => broken.markFailed({ id: 'd1', endpoint: '', p256dh: '', auth: '', failureCount: 0 }),
+      () =>
+        broken.markFailed({ id: 'd1', endpoint: '', p256dh: '', auth: '', failureCount: 0 }, 'x'),
     ]) {
       let message = '';
       try {
@@ -686,7 +768,8 @@ Deno.test({
         { ...device('/ok'), disabledAt: null, lastSuccessAt: null },
         { ...device('/gone'), disabledAt: null, lastSuccessAt: null },
       ];
-      const sum = await runReminders(store, send, AT);
+      // (A local push server is not a real push service: this test alone allows it.)
+      const sum = await runReminders(store, send, AT, () => true);
       assertEquals([sum.sent, sum.gone], [1, 1]);
       assertEquals(store.devices[1]!.disabledAt, new Date(AT).toISOString());
     } finally {

@@ -48,7 +48,8 @@ export class FakeServer {
   subscriptions = new Map<string, PushSubscriptionKeys & { disabled: boolean }>();
   /** Every push-subscription call, in order: `save <endpoint>` / `disable <endpoint>`. */
   pushCalls: string[] = [];
-  private nextSeq = 1;
+  /** The next `seq`; a test can skip one to act out a save that commits late. */
+  nextSeq = 1;
 
   constructor(private readonly now: () => number = Date.now) {}
 

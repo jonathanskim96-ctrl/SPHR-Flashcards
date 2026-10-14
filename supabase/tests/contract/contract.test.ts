@@ -47,9 +47,10 @@ const bank = loadBank();
 const asUser = (body: string, end: 'commit' | 'rollback' = 'rollback') =>
   `begin;\nselect tests.login(:'uid') \\gset\n${body}\n${end};\n`;
 
-// Errors the database raises for a value it cannot store at all (jsonb parse, constraints).
+// Errors the database raises for a value it cannot store at all (jsonb parse, constraints,
+// and since migration 0004 a push address that is not a push service's).
 const STORAGE_ERROR =
-  /invalid input syntax for type json|unsupported Unicode escape sequence|violates check constraint/;
+  /invalid input syntax for type json|unsupported Unicode escape sequence|violates check constraint|push address refused/;
 
 /** Accept/reject verdict from a database call, failing the test on any unexpected error. */
 function verdict(r: ReturnType<typeof sql>, accepted: (out: string) => boolean): boolean {
@@ -177,7 +178,7 @@ describe('round trips through the real functions', () => {
 
   it('a push subscription reads back identical', () => {
     const sub = {
-      endpoint: 'https://push.example.test/sub/1',
+      endpoint: 'https://web.push.apple.com/sub/1',
       p256dh: 'B'.repeat(87),
       auth: 'c'.repeat(22),
     };

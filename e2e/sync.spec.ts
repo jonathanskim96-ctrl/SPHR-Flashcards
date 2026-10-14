@@ -108,13 +108,17 @@ test('offline: answers wait on the phone, then back up and reach the other phone
   expect(cloud.server().rows).toHaveLength(2);
   await a.page.getByRole('button', { name: 'Back to Home' }).click();
   await expect(xpTotal(a.page)).toHaveText('2 XP');
-  await choose(a.page, [1], ['K', 'A']);
-  await expect(mistakesButton(a.page)).toHaveText('Mistakes (1)');
-
   await toFront(b.page);
-  await choose(b.page, [1], ['K', 'A']);
-  await expect(mistakesButton(b.page)).toHaveText('Mistakes (1)');
   await expect(xpTotal(b.page)).toHaveText('2 XP');
+  // The wrong answer made offline on phone A puts the card in Mistakes on both phones; it can
+  // be practised from tomorrow (audit M2), so look on both phones a day later.
+  for (const p of [a.page, b.page]) {
+    await p.clock.install({ time: Date.now() + 24 * 60 * 60 * 1000 });
+    await p.reload();
+    await p.getByRole('button', { name: 'Start lesson' }).waitFor();
+    await choose(p, [1], ['K', 'A']);
+    await expect(mistakesButton(p)).toHaveText('Mistakes (1)');
+  }
   await a.context.close();
   await b.context.close();
 });
@@ -152,7 +156,10 @@ async function homeRecord(page: Page) {
   return {
     xp: await xpTotal(page).textContent(),
     ring: await ring(page).getAttribute('aria-label'),
-    mistakes: await mistakesButton(page).textContent(),
+    // Hidden when nothing can be practised today (audit M2).
+    mistakes: (await mistakesButton(page).count())
+      ? await mistakesButton(page).textContent()
+      : null,
     bars: await page
       .getByRole('progressbar')
       .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label'))),
@@ -204,6 +211,10 @@ test('export → sign out → sign in to a fresh account → import: identical p
   await page.getByLabel('Progress file').setInputFiles(file);
   const dialog = page.getByRole('dialog', { name: 'Import progress?' });
   await expect(dialog).toContainText('20 new answers, 0 already present, 0 rejected.');
+  // A different account: it warns, and Import waits for "Import anyway" (audit L4).
+  await expect(dialog.getByRole('alert')).toContainText('a different account');
+  await expect(dialog.getByRole('button', { name: 'Import' })).toBeDisabled();
+  await dialog.getByRole('checkbox', { name: 'Import anyway' }).check();
   await dialog.getByRole('button', { name: 'Import' }).click();
   await expect(page.getByText(/Imported 20 new answers/)).toBeVisible({ timeout: 10_000 });
   await expect(backupLine(page)).toContainText('All answers backed up', { timeout: 10_000 });
