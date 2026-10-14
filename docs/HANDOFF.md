@@ -4,10 +4,11 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-14)
 
-- **Phase 9 (end-to-end tests, reviews) built** on branch `ccr-67c10ae0-ubtsvr`, waiting for
-  the owner's review. Phases 0–8 approved; **nothing merged to `main`**. What is left is
-  **go-live**, which only the owner can do: the OK to merge, then SETUP Parts A–E and G,
-  INSTALL on her phone and the INSTALL §5 checklist (SETUP.md now starts with the order).
+- **Phase 9 approved** by the owner (2026-10-14) and **merged into `main`** (fast-forward,
+  at the owner's request; CI was green on the branch). Phases 0–9 approved. What is left is
+  **go-live**, which only the owner can do: SETUP Parts A, B, C (re-run the deploy: its first
+  run fails until Pages and the repo variables exist), D, E and G, then INSTALL on her
+  phone and the INSTALL §5 checklist. SETUP.md starts with the order.
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
   Part B3 runs them). Until then the real app shows "The app is not configured";
   everything was tested against a pretend server. **The reminder function is not
@@ -268,7 +269,7 @@ Decided in the planning session (2026-10-13):
 | Phase 6 | **Approved** 2026-10-13 (start of the Phase 7 chat) |
 | Phase 7 | **Approved** 2026-10-13 |
 | Phase 8 | **Approved** 2026-10-13; no new product decisions were needed (all behaviour was decided in the plan) |
-| Phase 9 | Built 2026-10-14; no new product decisions (matching drag and the midnight reset were already in the plan); waiting for approval |
+| Phase 9 | **Approved** 2026-10-14 and merged into `main` at the owner's request; no new product decisions (matching drag and the midnight reset were already in the plan) |
 | Late reminder | **Up to 1 hour late, once**, when the run at her chosen time fails or she picks a time that has just passed (the alternative, skipping that day, was declined). `CATCH_UP_MS` in `supabase/functions/send-reminders/index.ts` (decided 2026-10-13, Phase 7) |
 | Phase 6 choices | **App icon:** white "SPHR" letters on the app's green. **Safari (not installed):** the "Add to Home Screen" steps card appears at the top of Settings only, in place of the reminder switch; Home is unchanged (decided 2026-10-13) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |

@@ -403,3 +403,10 @@ Mutation checks (each made, the named tests run, the file restored byte for byte
 | Mistakes left after one right answer | e2e days "Mistakes" |
 | no sync on return to the front | e2e sync "two phones" |
 | no date re-check in `useStudy` | e2e days "midnight" |
+
+## 2026-10-14: Phase 9 approved; merged into main
+
+Owner approved Phase 9 and asked for the merge. CI was green on `1509a9e`; `main` was an
+ancestor of the branch, so the merge is a fast-forward push (no history rewritten). SETUP
+Parts A and B were not done yet, so the first Deploy run on `main` is expected to fail
+(Pages off, no repo variables); SETUP Part C now says to re-run it after Parts A and B.

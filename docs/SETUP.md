@@ -14,7 +14,7 @@ Some parts need the app to be built first. The build session tells you when to d
 
 **Go-live order** (all phases are built; Phase 9 finished the testing):
 1. Part A (GitHub), then Part B (Supabase), in order.
-2. Part C: the build session asks for your OK to merge into `main`; the deploy runs.
+2. Part C: re-run the deploy (the merge into `main` is already done).
 3. Part D (keep-alive), then Part E (load the questions).
 4. Part G (confirm the facts), then `docs/INSTALL.md` on Michelle's iPhone, ending with its
    §5 first-day checklist.
@@ -188,10 +188,13 @@ when it's her chosen time. If you skip it, no reminders are ever sent.
 
 ## Part C: First deploy
 
-1. The build session asks you for OK to merge into `main`. Reply OK only when it says all
-   checks passed.
-2. Repo → **Actions** tab → click the newest **Deploy** run → wait for a green ✓ (not
-   "cancelled" or "skipped").
+The merge into `main` was done on 2026-10-14 (the owner's OK, end of Phase 9), before
+Parts A and B. Its first **Deploy** run fails with a red ✗ because Pages and the repo
+variables did not exist yet. That is expected and harmless: nothing was published. After
+Parts A and B, run the deploy again:
+1. Repo → **Actions** tab → left list **Deploy to GitHub Pages** → click the newest run →
+   **Re-run all jobs** (top right) → **Re-run jobs**.
+2. Wait for a green ✓ (not "cancelled" or "skipped").
 3. Open https://jonathanskim96-ctrl.github.io/SPHR-Flashcards/ in your browser and sign
    in with Michelle's account to check it works.
 
