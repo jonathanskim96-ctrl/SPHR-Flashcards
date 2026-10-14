@@ -481,3 +481,11 @@ with tests that fail without the fix (checked by removing the fix):
   recovery script raises the settings version (RECOVERY.md copy updated).
 - Nothing was run against the live system. The owner's steps (merge, export, 0004,
   function redeploy, environment secret, read-only checks) are HANDOFF §3 item 20.
+
+## 2026-10-14: Audit merged into main
+
+Owner: "OK to merge the audit branch into main." The full check chain had passed on
+`4e7264a` (730 vitest, 65 node, 22 Deno, 170 DB/contract, 54 e2e); `main` was an ancestor of
+the branch, so the merge is a fast-forward push (no history rewritten). The Deploy workflow
+on `main` now runs the new variable-shape step first. Migration 0004, the function
+redeploy and the environment secret are still the owner's steps (HANDOFF §3 item 20).

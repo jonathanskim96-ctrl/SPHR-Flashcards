@@ -4,7 +4,7 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-14)
 
-- **Security and bug audit (2026-10-14), branch `claude/happy-thompson-b923a5`, NOT merged.**
+- **Security and bug audit (2026-10-14): approved and merged into `main` at the owner's request (fast-forward).**
   Findings and fixes: `docs/SECURITY_AUDIT.md` (no critical or high; no secret ever
   committed; `npm audit` 0). The owner approved every recommended option (§2); **all are
   built and tested on the branch**: sync re-reads late answers (M1), Mistakes count (M2),
@@ -17,7 +17,7 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
   10-failures rule, no addresses in logs (L13, I2), secret in the `supabase-admin`
   environment (L16), test wait (L17). **Not done:** the black-box review and browser/local
   penetration tests (the agent's instructions were cut off by a safety filter). **Waiting
-  for the owner, in this order:** OK to merge → export on her phone → run `0004` in the SQL
+  for the owner, in this order:** (merge: done) → export on her phone → run `0004` in the SQL
   editor → redeploy `send-reminders` → move the secret into the environment → the
   read-only checks (time zone, sign-up switches, SQL, iPhone export). See §3 item 20.
 - **LIVE (2026-10-14), declared by the owner before the iPhone install.** All phases
@@ -293,6 +293,7 @@ Decided in the planning session (2026-10-13):
 | Late reminder | **Up to 1 hour late, once**, when the run at her chosen time fails or she picks a time that has just passed (the alternative, skipping that day, was declined). `CATCH_UP_MS` in `supabase/functions/send-reminders/index.ts` (decided 2026-10-13, Phase 7) |
 | Phase 6 choices | **App icon:** white "SPHR" letters on the app's green. **Safari (not installed):** the "Add to Home Screen" steps card appears at the top of Settings only, in place of the reminder switch; Home is unchanged (decided 2026-10-13) |
 | Audit 2026-10-14 | **All recommended options (A)** for every item in `docs/SECURITY_AUDIT.md` (owner, 2026-10-14): M1 pull re-reads an overlap; M2 Mistakes counts only cards she can practise today; M3 stricter migration checker; M4 workflow variable-shape step; M5 iPhone share sheet, "Last export" only on success; M6 "Use this phone's time zone?" offer; L1 other tabs close, sign-out refused when blocked; L2 own save recognised; L3 refused answers kept, retried, block sign-out; L4 account check on import; L5 one batch + "Importing…"; L7 stricter validator; L8 pair only on a prompt; L11 recovery raises the settings version; L12/L13/L15 migration `0004`; L13 function-side push host check; L14 anonymous accounts refused by policy (and the switches checked); L16 secret in a `main`-only Environment |
+| Audit merge | **Approved** 2026-10-14: the audit branch merged into `main` |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
 
 Design choices made in planning (no product trade-off, but worth knowing):
