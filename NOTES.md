@@ -410,3 +410,14 @@ Owner approved Phase 9 and asked for the merge. CI was green on `1509a9e`; `main
 ancestor of the branch, so the merge is a fast-forward push (no history rewritten). SETUP
 Parts A and B were not done yet, so the first Deploy run on `main` is expected to fail
 (Pages off, no repo variables); SETUP Part C now says to re-run it after Parts A and B.
+
+## 2026-10-14: Go-live
+
+Owner ran SETUP A–E with step-by-step help (Part G and the iPhone install still to do) and
+declared the app live after it worked in desktop Chrome. Problems met: (1) the build failed
+with "Invalid URL" because `VITE_SUPABASE_URL` held what looked like the database password;
+the run log is public, so the password was reset and the logs deleted; (2) sign-in failed
+with "Invalid path specified in request URL" because the variable ended in `/rest/v1/`
+(Supabase's Data API page shows that form). A new VAPID key pair replaced the lost Phase 7
+one (none had been used). Offered, not done: a build-time check that rejects a Supabase
+address with anything after the host.

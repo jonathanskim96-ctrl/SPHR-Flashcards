@@ -4,15 +4,19 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-14)
 
-- **Phase 9 approved** by the owner (2026-10-14) and **merged into `main`** (fast-forward,
-  at the owner's request; CI was green on the branch). Phases 0–9 approved. What is left is
-  **go-live**, which only the owner can do: SETUP Parts A, B, C (re-run the deploy: its first
-  run fails until Pages and the repo variables exist), D, E and G, then INSTALL on her
-  phone and the INSTALL §5 checklist. SETUP.md starts with the order.
-  **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
-  Part B3 runs them). Until then the real app shows "The app is not configured";
-  everything was tested against a pretend server. **The reminder function is not
-  deployed** (SETUP B7–B9), and the VAPID key pair was given to the owner in chat only.
+- **LIVE (2026-10-14), declared by the owner before the iPhone install.** All phases
+  approved and on `main`. Done: SETUP A1–A4, B1–B9 (migrations 0001–0003 run, sign-ups off,
+  Michelle's account, reminder secrets with a **new** VAPID pair made 2026-10-14 because the
+  Phase 7 pair was lost (given in chat only, never in a file), `send-reminders` deployed with
+  JWT verification off, 15-minute cron job active), C (deploy green; sign-in works in desktop
+  Chrome; Settings showed "All answers backed up"), D (keep-alive green, so the `sb_secret_`
+  key works with Supabase) and E (import applied: 400 new, 0 changed).
+  **Not yet verified:** Part G 1–4 (pause note, usage quota, the function's own logs inside
+  Supabase), the install on Michelle's iPhone and the whole INSTALL §5 checklist (home-screen
+  app, push reminder delivery, finger drags, offline, export, overnight reset).
+  Setup incidents, both fixed: the database password was pasted into the public variable
+  `VITE_SUPABASE_URL` (it printed in a public run log): password reset, logs deleted; then the
+  URL had `/rest/v1/` on the end ("Invalid path specified in request URL" at sign-in): fixed.
 - Phase 9 contents: **e2e** (Playwright, production build with CSP, iPhone 13 Pro Max
   profile on Chromium; real-device checks are INSTALL §5): `e2e/cloud.ts` (a pretend
   Supabase that keeps state: accounts, refresh tokens, PostgREST reads, `apply_changes`
