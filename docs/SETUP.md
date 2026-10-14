@@ -51,6 +51,8 @@ project to talk to. These values are public by design.
 1. Repo **Settings** → left menu **Secrets and variables** → **Actions**.
 2. Click the **Variables** tab → **New repository variable**. Add these three, one at a time:
    - Name `VITE_SUPABASE_URL`, value: your Project URL (B2), like `https://abcd1234.supabase.co`
+     (just that: nothing after `.co`. Supabase's Data API page may show it with `/rest/v1/`
+     on the end; leave that part off. The build refuses any other shape with a plain message.)
    - Name `VITE_SUPABASE_PUBLISHABLE_KEY`, value: the publishable key (B2), starts `sb_publishable_`
    - Name `VITE_VAPID_PUBLIC_KEY`, value: the VAPID public key Claude gives you (B7)
 

@@ -13,12 +13,38 @@ const BUILD_ID =
   `${new Date().toISOString().slice(0, 10)}-${(process.env.GITHUB_SHA ?? 'dev').slice(0, 7)}`;
 
 /**
+ * The Supabase address must be the bare project address (`https://abcd1234.supabase.co`).
+ * Anything after it (such as `/rest/v1/`, which Supabase's Data API page shows) makes every
+ * request fail at sign-in, so the build stops with a plain message instead. The message never
+ * repeats the value: a secret pasted into the wrong box would otherwise be printed again.
+ * Plain http is accepted only for the reserved test names (`*.test`, `localhost`).
+ */
+export function checkSupabaseUrl(value: string | undefined): void {
+  if (!value) return;
+  const fix =
+    'Set the repository variable VITE_SUPABASE_URL to just the Project URL, like ' +
+    'https://abcd1234.supabase.co (nothing after .co: no /rest/v1/, no slash, no space).';
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`VITE_SUPABASE_URL is not a web address. ${fix}`);
+  }
+  const testHost = url.hostname === 'localhost' || url.hostname.endsWith('.test');
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && testHost))
+    throw new Error(`VITE_SUPABASE_URL must start with https://. ${fix}`);
+  if (value !== url.origin)
+    throw new Error(`VITE_SUPABASE_URL has something extra before or after the address. ${fix}`);
+}
+
+/**
  * The Content-Security-Policy as a <meta> tag, added to the built page only (the dev server
  * needs inline scripts). connect-src is limited to this site and the Supabase project.
  * frame-ancestors cannot be set from a meta tag (browsers ignore it there); the frame-busting
  * check in src/frameBust.ts covers that instead.
  */
 export function contentSecurityPolicy(supabaseUrl: string | undefined): string {
+  checkSupabaseUrl(supabaseUrl);
   const connect = ["'self'"];
   if (supabaseUrl) connect.push(new URL(supabaseUrl).origin);
   return [

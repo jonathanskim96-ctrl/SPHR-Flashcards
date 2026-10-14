@@ -419,5 +419,7 @@ with "Invalid URL" because `VITE_SUPABASE_URL` held what looked like the databas
 the run log is public, so the password was reset and the logs deleted; (2) sign-in failed
 with "Invalid path specified in request URL" because the variable ended in `/rest/v1/`
 (Supabase's Data API page shows that form). A new VAPID key pair replaced the lost Phase 7
-one (none had been used). Offered, not done: a build-time check that rejects a Supabase
-address with anything after the host.
+one (none had been used). Added afterwards (owner's request): `checkSupabaseUrl` in
+`vite.config.ts` stops the build unless `VITE_SUPABASE_URL` is the bare project address
+(https; plain http only for `*.test`/`localhost`); its message never repeats the value.
+Tested in `scripts/csp.test.mjs` (mutation: dropping the "nothing extra" check fails it).
