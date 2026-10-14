@@ -118,16 +118,17 @@ export type SignOutResult =
  * signs out and deletes this user's local data (everything in it is on the server).
  */
 export async function signOut(session: Session, auth: AuthLike): Promise<SignOutResult> {
-  await session.engine.sync();
-  const pending = await session.store.pending();
-  if (pending.answers > 0 || pending.settings)
-    return {
-      ok: false,
-      reason: 'unsynced',
-      pendingAnswers: pending.answers,
-      pendingSettings: pending.settings,
-    };
   try {
+    // Inside the try: a failing check must show an error, not vanish (audit L10).
+    await session.engine.sync();
+    const pending = await session.store.pending();
+    if (pending.answers > 0 || pending.settings)
+      return {
+        ok: false,
+        reason: 'unsynced',
+        pendingAnswers: pending.answers,
+        pendingSettings: pending.settings,
+      };
     const { error } = await auth.signOut();
     if (error) return { ok: false, reason: 'error', error: `Sign-out failed: ${error.message}` };
     session.engine.stop();

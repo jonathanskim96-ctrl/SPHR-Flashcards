@@ -2,7 +2,7 @@
 // "3 answers waiting to back up" / the last error, plus any notices (an answer the server
 // refused, a settings conflict) until she dismisses them. Text nodes only.
 import { useEffect, useState } from 'react';
-import type { LocalStore } from '../data/store';
+import { errorText, type LocalStore } from '../data/store';
 import { syncStatusText, type SyncEngine, type SyncStatus } from '../data/sync';
 
 export function useSyncStatus(engine: SyncEngine, store: LocalStore): SyncStatus | null {
@@ -50,8 +50,16 @@ export function SyncStatusView({
   onDismiss,
 }: {
   status: SyncStatus | null;
-  onDismiss: () => void;
+  onDismiss: () => Promise<void> | void;
 }) {
+  const [dismissError, setDismissError] = useState<string | null>(null);
+  // Dismissing writes to the phone; if that fails, say so (audit L10).
+  const dismiss = () => {
+    setDismissError(null);
+    Promise.resolve()
+      .then(onDismiss)
+      .catch((e: unknown) => setDismissError(`Could not dismiss: ${errorText(e)}`));
+  };
   if (!status) return <p role="status">Checking backup…</p>;
   return (
     <div>
@@ -67,10 +75,15 @@ export function SyncStatusView({
               <li key={i}>{n}</li>
             ))}
           </ul>
-          <button type="button" onClick={onDismiss}>
+          <button type="button" onClick={dismiss}>
             Dismiss
           </button>
         </div>
+      )}
+      {dismissError && (
+        <p role="alert" className="error">
+          {dismissError}
+        </p>
       )}
     </div>
   );
@@ -78,5 +91,5 @@ export function SyncStatusView({
 
 export function SyncStatusLine({ engine, store }: { engine: SyncEngine; store: LocalStore }) {
   const status = useSyncStatus(engine, store);
-  return <SyncStatusView status={status} onDismiss={() => void store.dismissNotices()} />;
+  return <SyncStatusView status={status} onDismiss={() => store.dismissNotices()} />;
 }

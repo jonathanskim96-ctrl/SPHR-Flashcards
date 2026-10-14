@@ -38,6 +38,34 @@ export function checkSupabaseUrl(value: string | undefined): void {
 }
 
 /**
+ * The two other variables are public by design and end up in the published JavaScript, so a
+ * secret pasted into the wrong box would be published. The build stops unless each one has the
+ * shape of its public value: the publishable key starts `sb_publishable_` (never `sb_secret_`),
+ * and the VAPID public key is 87 base64url characters starting with `B` (the private key is
+ * 43). Empty is allowed (CI builds without them). The message never repeats the value.
+ */
+export function checkPublicKeys(env: {
+  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
+  VITE_VAPID_PUBLIC_KEY?: string;
+}): void {
+  const key = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (key && !/^sb_publishable_[A-Za-z0-9_-]+$/.test(key))
+    throw new Error(
+      'VITE_SUPABASE_PUBLISHABLE_KEY is not a publishable key. It must start with ' +
+        'sb_publishable_ (Supabase: Project Settings > API Keys > Publishable key). ' +
+        'If you pasted the secret key there, delete it from the variable and make a new ' +
+        'secret key in Supabase.',
+    );
+  const vapid = env.VITE_VAPID_PUBLIC_KEY;
+  if (vapid && !/^B[A-Za-z0-9_-]{86}$/.test(vapid))
+    throw new Error(
+      'VITE_VAPID_PUBLIC_KEY is not a VAPID public key (87 letters and digits starting with B, ' +
+        'nothing before or after). If you pasted the private key there, delete it from the ' +
+        'variable and make a new key pair.',
+    );
+}
+
+/**
  * The Content-Security-Policy as a <meta> tag, added to the built page only (the dev server
  * needs inline scripts). connect-src is limited to this site and the Supabase project.
  * frame-ancestors cannot be set from a meta tag (browsers ignore it there); the frame-busting
@@ -59,10 +87,12 @@ export function contentSecurityPolicy(supabaseUrl: string | undefined): string {
   ].join('; ');
 }
 
-function cspPlugin(supabaseUrl: string | undefined): Plugin {
+function cspPlugin(env: Record<string, string>): Plugin {
+  const supabaseUrl = env.VITE_SUPABASE_URL;
   return {
     name: 'sphr-csp',
     apply: 'build',
+    buildStart: () => checkPublicKeys(env),
     transformIndexHtml: () => [
       {
         tag: 'meta',
@@ -81,7 +111,7 @@ export default defineConfig(({ mode }) => ({
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     react(),
-    cspPlugin(loadEnv(mode, process.cwd(), 'VITE_').VITE_SUPABASE_URL),
+    cspPlugin(loadEnv(mode, process.cwd(), 'VITE_')),
     VitePWA({
       // Registered by hand in src/pwa.ts, which also drives the "New version: Reload" banner.
       injectRegister: false,
@@ -121,6 +151,7 @@ export default defineConfig(({ mode }) => ({
     // The 1,000-case property tests are CPU-heavy: alone ~1.5 s, but over 5 s when they share
     // the machine with the screen tests. Only the time limit is raised; no check is loosened.
     testTimeout: 30_000,
+    setupFiles: ['tests/setup.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/domain/**/*.ts', 'src/data/**/*.ts'],

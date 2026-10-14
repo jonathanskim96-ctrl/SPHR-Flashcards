@@ -423,3 +423,25 @@ one (none had been used). Added afterwards (owner's request): `checkSupabaseUrl`
 `vite.config.ts` stops the build unless `VITE_SUPABASE_URL` is the bare project address
 (https; plain http only for `*.test`/`localhost`); its message never repeats the value.
 Tested in `scripts/csp.test.mjs` (mutation: dropping the "nothing extra" check fails it).
+
+## 2026-10-14: Security and bug audit
+
+Owner asked for a full security and bug audit from the latest `main` (`36692d3`). Three
+separate subagents, each starting fresh: bug audit A (answer and progress safety), bug audit
+B (screens, scripts, reminder function, workflows, recovery), white-box security review
+(CLAUDE.md §2 item by item, SQL probes on local PostgreSQL). Dependency review in the main
+session (`npm audit` 0, also for the function's `web-push`/`supabase-js`). The black-box /
+penetration-test agent was stopped before it did anything (its instructions were cut off by
+a safety filter); that part is listed as not done. Nothing was sent to the live Supabase
+project or github.io.
+Results in `docs/SECURITY_AUDIT.md`: 6 medium, 17 low, 4 info; no critical/high. Baseline
+check run on unchanged `main`: one screen test (Settings "lists rejected answers…") failed
+while the three reviews loaded the machine; it passes alone (L17). Fixed directly, each with
+a test that fails without the fix (checked by removing the fix): M4 `checkPublicKeys` in
+`vite.config.ts` (`scripts/csp.test.mjs`; a real `vite build` with an `sb_secret_` value
+stops without printing it), L6 `saveEnabled` reads the latest settings
+(`reminder.test.tsx`), L9 Study draft resets only on its own four fields
+(`Settings.test.tsx`), L10 sign-out check inside the try (`session.test.ts`), Dismiss and
+"Not now" errors shown (`SyncStatusLine.test.tsx`, `reminder.test.tsx`), L17
+`tests/setup.ts` (`tests/setup.test.ts`). Everything else waits for the owner's decision.
+

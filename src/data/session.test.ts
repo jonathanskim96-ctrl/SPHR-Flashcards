@@ -196,6 +196,20 @@ describe('signOut', () => {
     reopened.close();
   });
 
+  it('reports a failing check instead of throwing, and does not sign out (audit L10)', async () => {
+    const { s } = await withPending();
+    const auth = { signOut: vi.fn(async () => ({ error: null })) };
+    vi.spyOn(s.store, 'pending').mockRejectedValueOnce(new Error('database closed'));
+    expect(await signOut(s, auth)).toEqual({
+      ok: false,
+      reason: 'error',
+      error: 'Sign-out failed: database closed',
+    });
+    expect(auth.signOut).not.toHaveBeenCalled();
+    expect(await s.store.settingsRecord()).toBeDefined();
+    s.store.close();
+  });
+
   it('reports an auth failure and keeps the local data', async () => {
     const { s } = await withPending();
     const r = await signOut(s, { signOut: async () => ({ error: { message: 'network down' } }) });

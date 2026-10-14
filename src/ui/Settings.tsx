@@ -85,7 +85,8 @@ export function Settings({
   // Settings changed underneath (restored from a file, or reloaded from another device):
   // show the new values instead of the old draft. Compared by content: the object is
   // re-read from the phone after every sync, and that must not wipe what she is typing.
-  const settingsKey = JSON.stringify(s);
+  // Only the four fields in the draft count: a reminder change must not wipe them (audit L9).
+  const settingsKey = JSON.stringify([s.newPerDay, s.lessonSize, s.dailyXpGoal, s.examDate]);
   const [seen, setSeen] = useState(settingsKey);
   if (seen !== settingsKey) {
     setSeen(settingsKey);

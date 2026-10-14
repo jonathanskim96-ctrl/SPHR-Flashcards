@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'vite';
 
-const { contentSecurityPolicy, checkSupabaseUrl } = await (async () => {
+const { contentSecurityPolicy, checkSupabaseUrl, checkPublicKeys } = await (async () => {
   const server = await createServer({
     server: { middlewareMode: true },
     appType: 'custom',
@@ -58,4 +58,39 @@ test('the Supabase address must be the bare project address', () => {
     );
     assert.throws(() => contentSecurityPolicy(value), message);
   }
+});
+
+test('a secret in a public key variable stops the build (audit M4)', () => {
+  const vapidPublic =
+    'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM';
+  for (const ok of [
+    {},
+    { VITE_SUPABASE_PUBLISHABLE_KEY: '', VITE_VAPID_PUBLIC_KEY: '' },
+    {
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_AbC-12_x',
+      VITE_VAPID_PUBLIC_KEY: vapidPublic,
+    },
+  ])
+    assert.doesNotThrow(() => checkPublicKeys(ok), JSON.stringify(ok));
+  const bad = {
+    VITE_SUPABASE_PUBLISHABLE_KEY: [
+      'sb_secret_AbC12xyz',
+      'a-database-password-123',
+      'sb_publishable_AbC12 ',
+      ' sb_publishable_AbC12',
+    ],
+    // A VAPID private key is 43 characters; the public one with something extra is refused too.
+    VITE_VAPID_PUBLIC_KEY: [
+      'Xk3s9dV0q_-a1b2c3d4e5f6g7h8i9j0kLmNoPqRsTuV',
+      vapidPublic + '=',
+      `${vapidPublic}\n`,
+    ],
+  };
+  for (const [name, values] of Object.entries(bad))
+    for (const value of values)
+      assert.throws(
+        () => checkPublicKeys({ [name]: value }),
+        (e) => e.message.startsWith(name) && !e.message.includes(value.trim()),
+        `${name}=${JSON.stringify(value)}`,
+      );
 });

@@ -4,6 +4,19 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-14)
 
+- **Security and bug audit (2026-10-14), branch `claude/happy-thompson-b923a5`, not merged.**
+  Full findings: `docs/SECURITY_AUDIT.md`. No critical or high findings; no secret ever
+  committed; `npm audit` 0. Fixed directly (behaviour-neutral, each with a test that fails
+  without it): M4 build check (a secret in `VITE_SUPABASE_PUBLISHABLE_KEY` or
+  `VITE_VAPID_PUBLIC_KEY` stops the build without printing it), L6 reminder switch no longer
+  puts back a time chosen while it turns on, L9 Study fields kept when the reminder changes,
+  L10 three swallowed errors now shown (sign-out check, Dismiss, "Not now"), L17 screen tests
+  wait up to 10 s (`tests/setup.ts`). **Waiting for the owner's decisions:** M1, M2, M3, M4
+  workflow part, M5, M6, L1–L5, L7, L8, L11–L14, L16 (options in the audit file; answers go
+  in §2). **Not done:** the black-box review and the browser/local-database penetration
+  tests (the agent's instructions were cut off by a safety filter; see the audit file).
+  **Owner checks on the live system** (read-only): Michelle's time zone in Settings, the
+  Supabase sign-up/anonymous switches, read-only SQL checks, export on the iPhone.
 - **LIVE (2026-10-14), declared by the owner before the iPhone install.** All phases
   approved and on `main`. Done: SETUP A1–A4, B1–B9 (migrations 0001–0003 run, sign-ups off,
   Michelle's account, reminder secrets with a **new** VAPID pair made 2026-10-14 because the
@@ -459,6 +472,13 @@ changing):
    lists them. (d) The security pass found nothing to fix. Noted, not changed: on Supabase
    the app roles may be allowed to create objects in the `public` schema, but the API
    (PostgREST) cannot run such statements, so this is not reachable from the app.
+
+20. **Audit 2026-10-14 decisions pending** (`docs/SECURITY_AUDIT.md`): M1 missed answers
+   between two phones; M2 Mistakes loop; M3 migration checker gaps; M4 workflow variable
+   check; M5 iPhone export; M6 time zone; L1 two-tab sign-out; L2 false settings conflict;
+   L3 refused answers; L4 import account check; L5 import speed; L7 validator gaps; L8
+   matching drop; L11 recovery version; L12 direct table writes; L13 push endpoints; L14
+   sign-up switches; L16 secret scoped to `main`. L15 goes into the next migration.
 
 **Unverified facts (confirm during SETUP)**
 17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the

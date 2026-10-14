@@ -4,6 +4,7 @@
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LocalStore } from '../data/store';
 import { harness } from '../../tests/uiHarness';
 import { refreshProblem, timeLabel } from './reminder';
 
@@ -104,6 +105,23 @@ describe('Settings: turning the reminder on', () => {
     await act(async () => answer('granted'));
     await waitFor(() => expect(sw.checked).toBe(true));
     expect(sw.disabled).toBe(false);
+  });
+
+  it('a time chosen while it is turning on is kept (audit L6)', async () => {
+    const { user, browser } = await harness();
+    let answer: (p: 'granted') => void = () => {};
+    browser.push.platform.requestPermission = () => new Promise((r) => (answer = r));
+    const sw = await openSettings(user);
+    await user.click(sw);
+    await user.selectOptions(screen.getByRole('combobox'), '08:00');
+    await waitFor(() =>
+      expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('08:00'),
+    );
+    await act(async () => answer('granted'));
+    await waitFor(() => expect(sw.checked).toBe(true));
+    // Before the fix the switch saved the settings from the moment of the tap: back to 3 PM.
+    await new Promise((r) => setTimeout(r, 100));
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('08:00');
   });
 });
 
@@ -250,6 +268,16 @@ describe('Home: the one-time reminder card', () => {
     await user.click(screen.getByRole('button', { name: 'Back to Home' }));
     await screen.findByRole('button', { name: 'Start lesson' });
     expect(offerCard()).toBeNull();
+  });
+
+  it('Not now: a failed save is shown, not swallowed (audit L10)', async () => {
+    const { user } = await harness();
+    const card = await screen.findByRole('region', { name: 'Daily reminder offer' });
+    vi.spyOn(LocalStore.prototype, 'setMeta').mockRejectedValueOnce(new Error('disk full'));
+    await user.click(within(card).getByRole('button', { name: 'Not now' }));
+    expect((await within(card).findByRole('alert')).textContent).toContain(
+      'Could not save: disk full',
+    );
   });
 
   it("Don't Allow: the card explains how to allow, and Not now closes it", async () => {

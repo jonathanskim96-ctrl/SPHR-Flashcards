@@ -81,6 +81,19 @@ describe('Settings: study pace', () => {
     expect(goal.value).toBe('77');
   });
 
+  it('keeps what she is typing when the reminder time changes before Save (audit L9)', async () => {
+    const { user } = await harness();
+    await openSettings(user);
+    const lesson = screen.getByLabelText(/Cards per lesson/) as HTMLInputElement;
+    await user.clear(lesson);
+    await user.type(lesson, '20');
+    const time = screen.getByLabelText('Time') as HTMLSelectElement;
+    await user.selectOptions(time, '08:45');
+    await waitFor(() => expect(time.value).toBe('08:45'));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(lesson.value).toBe('20');
+  });
+
   it('checkDraft explains each problem, including a bad date', () => {
     const base = defaultSettings(TZ);
     const bad = checkDraft(

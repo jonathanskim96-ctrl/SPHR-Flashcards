@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { SyncStatus } from '../data/sync';
 import { SyncStatusView } from './SyncStatusLine';
 
@@ -38,4 +41,20 @@ describe('SyncStatusView', () => {
     expect(out).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(out).not.toContain('<img');
   });
+
+  it('shows an error when dismissing fails (audit L10)', async () => {
+    const user = userEvent.setup();
+    render(
+      <SyncStatusView
+        status={{ ...base, notices: ['a notice'] }}
+        onDismiss={() => Promise.reject(new Error('disk full'))}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect((await screen.findByText('Could not dismiss: disk full')).getAttribute('role')).toBe(
+      'alert',
+    );
+  });
 });
+
+afterEach(cleanup);

@@ -10,6 +10,7 @@ import {
   type RefreshResult,
 } from '../data/push';
 import type { Session } from '../data/session';
+import { errorText } from '../data/store';
 import type { Settings } from '../domain/types';
 import type { Study } from './useStudy';
 
@@ -67,9 +68,12 @@ export function useReminderSwitch(session: Session, push: PushDeps, settings: Se
   const [problem, setProblem] = useState<ReminderProblem | null>(null);
 
   async function saveEnabled(reminderEnabled: boolean): Promise<boolean> {
+    // Turning on waits for the permission prompt and the server, so read the saved settings
+    // again now: a time chosen (or a sync) meanwhile must not be put back (audit L6).
+    const latest = (await session.store.settingsRecord())?.settings ?? settings;
     const r = await session.store.guardedWrite({
       kind: 'settings',
-      settings: { ...settings, reminderEnabled },
+      settings: { ...latest, reminderEnabled },
     });
     if (!r.ok) {
       setProblem({ kind: 'error', text: `Settings could not be saved: ${r.errors.join('; ')}` });
@@ -215,7 +219,14 @@ export function ReminderOffer({
   study: Study;
 }) {
   const sw = useReminderSwitch(session, push, study.settings);
-  const done = () => void session.store.setMeta({ reminderOfferDone: true });
+  const [doneError, setDoneError] = useState<string | null>(null);
+  // Remembering the card is a write to the phone; if it fails, say so (audit L10).
+  const done = () => {
+    setDoneError(null);
+    session.store
+      .setMeta({ reminderOfferDone: true })
+      .catch((e: unknown) => setDoneError(`Could not save: ${errorText(e)}`));
+  };
   return (
     <section className="card stack" aria-label="Daily reminder offer">
       <p>
@@ -230,6 +241,11 @@ export function ReminderOffer({
         </button>
       </div>
       {sw.problem && <ReminderMessage problem={sw.problem} />}
+      {doneError && (
+        <p role="alert" className="error">
+          ✗ {doneError}
+        </p>
+      )}
     </section>
   );
 }
