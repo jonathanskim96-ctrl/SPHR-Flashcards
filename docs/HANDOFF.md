@@ -18,7 +18,7 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
   environment (L16), test wait (L17). **Not done:** the black-box review and browser/local
   penetration tests (the agent's instructions were cut off by a safety filter). **Waiting
   for the owner, in this order:** (merge: done) → export on her phone → run `0004` in the SQL
-  editor → redeploy `send-reminders` → move the secret into the environment → the
+  editor → redeploy `send-reminders` → (environment secret: done) → the
   read-only checks (time zone, sign-up switches, SQL, iPhone export). See §3 item 20.
 - **LIVE (2026-10-14), declared by the owner before the iPhone install.** All phases
   approved and on `main`. Done: SETUP A1–A4, B1–B9 (migrations 0001–0003 run, sign-ups off,
@@ -482,8 +482,9 @@ changing):
    (a) export on Michelle's phone; (b) run migration `0004` in the SQL editor (additive;
    refuses push addresses that aren't push services, so check (e) first if unsure);
    (c) redeploy `send-reminders` with the new `index.ts` (B8 steps 1–4, editing the existing
-   function); (d) create the `supabase-admin` environment, put `SUPABASE_SECRET_KEY` in it,
-   delete the repository secret, then run "Keep Supabase awake" by hand (SETUP A4);
+   function); (d) **DONE 2026-10-14**: `supabase-admin` environment (deployment branch
+   `main`) holds `SUPABASE_SECRET_KEY`, the repository secret is removed, and "Keep
+   Supabase awake" ran green twice afterwards (owner);
    (e) read-only checks: Michelle's time zone in Settings, sign-up and anonymous sign-in
    switches off, the SQL in the audit report, export saves a file on the iPhone.
    Not done (needs Michelle's account id, optional): a policy that only her account may

@@ -489,3 +489,9 @@ Owner: "OK to merge the audit branch into main." The full check chain had passed
 the branch, so the merge is a fast-forward push (no history rewritten). The Deploy workflow
 on `main` now runs the new variable-shape step first. Migration 0004, the function
 redeploy and the environment secret are still the owner's steps (HANDOFF §3 item 20).
+
+## 2026-10-14: Secret moved into the `supabase-admin` environment (audit L16)
+
+Owner created the environment (deployment branch `main`), added `SUPABASE_SECRET_KEY` there
+(the `sb_secret_` key from SETUP B2), removed the repository secret, and ran "Keep Supabase
+awake" by hand twice: green both times.
