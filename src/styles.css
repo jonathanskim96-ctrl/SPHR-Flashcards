@@ -392,6 +392,14 @@ progress::-moz-progress-bar {
   background: var(--bg);
   border-radius: 12px;
 }
+.option[data-draggable] {
+  touch-action: manipulation;
+}
+.option.dragging {
+  position: relative;
+  z-index: 3;
+  opacity: 0.9;
+}
 .order-row.dragging {
   opacity: 0.85;
   z-index: 2;

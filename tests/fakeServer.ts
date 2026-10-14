@@ -58,7 +58,7 @@ export class FakeServer {
         this.calls++;
         await this.onApply?.();
         this.check();
-        const raw = this.apply(structuredClone(attempts), structuredClone(settings), base);
+        const raw = this.applyRaw(structuredClone(attempts), structuredClone(settings), base);
         if (this.loseReplies > 0) {
           this.loseReplies--;
           throw new Error('Saving to the server failed: TypeError: Load failed');
@@ -69,21 +69,9 @@ export class FakeServer {
         await this.onPull?.();
         this.check();
         const page: PullPage = { rows: [], lastSeq: null, bad: [] };
-        for (const r of this.rows.filter((x) => x.seq > afterSeq).slice(0, limit)) {
-          const a = r.attempt;
-          const res = fromServerAttempt({
-            seq: r.seq,
-            id: a.id,
-            question_id: a.questionId,
-            revision: a.revision,
-            answer_fp: a.answerFp,
-            correct: a.correct,
-            xp: a.xp,
-            mode: a.mode,
-            response: structuredClone(a.response),
-            answered_at: pgTimestamp(a.answeredAt),
-          });
-          page.lastSeq = r.seq;
+        for (const row of this.attemptRows(afterSeq, limit)) {
+          const res = fromServerAttempt(row);
+          page.lastSeq = row.seq;
           if (res.ok) page.rows.push(res.value);
           else page.bad.push(res.error);
         }
@@ -91,18 +79,8 @@ export class FakeServer {
       },
       getSettings: async () => {
         this.check();
-        if (!this.settings) return null;
-        const s = this.settings.value;
-        return fromServerSettingsRow({
-          new_per_day: s.newPerDay,
-          lesson_size: s.lessonSize,
-          daily_xp_goal: s.dailyXpGoal,
-          exam_date: s.examDate,
-          reminder_enabled: s.reminderEnabled,
-          reminder_time: `${s.reminderTime}:00`,
-          time_zone: s.timeZone,
-          version: this.settings.version,
-        });
+        const row = this.settingsRow();
+        return row ? fromServerSettingsRow(row) : null;
       },
       getBankVersion: async () => {
         this.check();
@@ -149,8 +127,43 @@ export class FakeServer {
     if (this.offline) throw new Error('Saving to the server failed: TypeError: Failed to fetch');
   }
 
-  /** Mirrors apply_changes; returns its raw JSON. */
-  private apply(attempts: readonly unknown[], settings: Settings | null, base: number | null) {
+  /** `attempts` rows with `seq > afterSeq`, in PostgREST's spelling (also used by e2e). */
+  attemptRows(afterSeq: number, limit: number) {
+    return this.rows
+      .filter((x) => x.seq > afterSeq)
+      .slice(0, limit)
+      .map(({ seq, attempt: a }) => ({
+        seq,
+        id: a.id,
+        question_id: a.questionId,
+        revision: a.revision,
+        answer_fp: a.answerFp,
+        correct: a.correct,
+        xp: a.xp,
+        mode: a.mode,
+        response: structuredClone(a.response),
+        answered_at: pgTimestamp(a.answeredAt),
+      }));
+  }
+
+  /** The `settings` row in PostgREST's spelling, or null (also used by e2e). */
+  settingsRow() {
+    if (!this.settings) return null;
+    const s = this.settings.value;
+    return {
+      new_per_day: s.newPerDay,
+      lesson_size: s.lessonSize,
+      daily_xp_goal: s.dailyXpGoal,
+      exam_date: s.examDate,
+      reminder_enabled: s.reminderEnabled,
+      reminder_time: `${s.reminderTime}:00`,
+      time_zone: s.timeZone,
+      version: this.settings.version,
+    };
+  }
+
+  /** Mirrors apply_changes; returns its raw JSON (also used by e2e). */
+  applyRaw(attempts: readonly unknown[], settings: Settings | null, base: number | null) {
     if (attempts.length > 200) throw new Error('too many answers in one call');
     const rejected: { index: number; id: string | null; reason: string }[] = [];
     let inserted = 0;

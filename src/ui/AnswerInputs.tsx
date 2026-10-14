@@ -7,6 +7,8 @@ import {
   KeyboardSensor,
   MouseSensor,
   TouchSensor,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -300,18 +302,96 @@ function OrderingInput({ q, order, disabled, onChange }: InputProps<OrderingQues
   );
 }
 
+/** A pool option: tap it, or drag it onto a prompt (mouse or touch; a tap stays a tap). */
+function DraggableOption({
+  option,
+  disabled,
+  onTap,
+}: {
+  option: Labeled;
+  disabled: boolean;
+  onTap: () => void;
+}) {
+  const { listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `option:${option.id}`,
+    disabled,
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      className={isDragging ? 'option dragging' : 'option'}
+      data-draggable=""
+      style={{ transform: CSS.Translate.toString(transform) }}
+      disabled={disabled}
+      onClick={onTap}
+      {...listeners}
+    >
+      {option.text}
+    </button>
+  );
+}
+
+function DroppablePrompt({
+  prompt,
+  pairedText,
+  active,
+  disabled,
+  onTap,
+}: {
+  prompt: Labeled;
+  pairedText: string | undefined;
+  active: boolean;
+  disabled: boolean;
+  onTap: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `prompt:${prompt.id}`, disabled });
+  return (
+    <li ref={setNodeRef}>
+      <button
+        type="button"
+        className={`match-prompt${active || isOver ? ' active' : ''}`}
+        aria-pressed={active}
+        disabled={disabled}
+        onClick={onTap}
+      >
+        <span>{prompt.text}</span>
+        <span className="match-arrow" aria-hidden="true">
+          →
+        </span>
+        <span className="match-value">
+          {pairedText !== undefined ? `${pairedText} (tap to undo)` : '…'}
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function MatchingInput({ q, order, disabled, onChange }: InputProps<MatchingQuestion>) {
   const [pairs, setPairs] = useState<Record<string, string>>({});
   const [active, setActive] = useState<string | null>(null);
   const used = new Set(Object.values(pairs));
   const pool = byOrder(q.options, order).filter((o) => !used.has(o.id));
   const optionText = (id: string) => q.options.find((o) => o.id === id)?.text ?? id;
+  // No keyboard sensor here: Enter/Space on an option must stay a tap. The whole option is
+  // draggable, so a touch drag needs a slightly longer hold than the ordering handle: a
+  // slow scroll that starts on an option should still scroll.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
 
   function commit(next: Record<string, string>) {
     setPairs(next);
     onChange(
       q.prompts.every((p) => next[p.id] !== undefined) ? { type: 'matching', pairs: next } : null,
     );
+  }
+  function pair(promptId: string, optionId: string) {
+    // Pairing a prompt that already has a match puts the old match back in the pool.
+    const next = { ...pairs, [promptId]: optionId };
+    commit(next);
+    setActive(q.prompts.find((p) => next[p.id] === undefined)?.id ?? null);
   }
   function tapPrompt(id: string) {
     if (pairs[id] !== undefined) {
@@ -322,51 +402,45 @@ function MatchingInput({ q, order, disabled, onChange }: InputProps<MatchingQues
   }
   function tapOption(optionId: string) {
     const target = active ?? q.prompts.find((p) => pairs[p.id] === undefined)?.id;
-    if (!target) return;
-    const next = { ...pairs, [target]: optionId };
-    commit(next);
-    setActive(q.prompts.find((p) => next[p.id] === undefined)?.id ?? null);
+    if (target) pair(target, optionId);
+  }
+  function onDragEnd(e: DragEndEvent) {
+    const optionId = String(e.active.id).replace(/^option:/, '');
+    const promptId = e.over ? String(e.over.id).replace(/^prompt:/, '') : null;
+    if (promptId === null || !q.prompts.some((p) => p.id === promptId)) return;
+    if (!q.options.some((o) => o.id === optionId) || used.has(optionId)) return;
+    pair(promptId, optionId);
   }
   return (
-    <div>
-      <p className="muted">Tap an item, then tap its match. Tap a pair to undo it.</p>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <p className="muted">
+        Tap an item, then tap its match (or drag the match onto it). Tap a pair to undo it.
+      </p>
       <ul className="match-prompts">
         {q.prompts.map((p) => {
           const paired = pairs[p.id];
           return (
-            <li key={p.id}>
-              <button
-                type="button"
-                className={`match-prompt${active === p.id ? ' active' : ''}`}
-                aria-pressed={active === p.id}
-                disabled={disabled}
-                onClick={() => tapPrompt(p.id)}
-              >
-                <span>{p.text}</span>
-                <span className="match-arrow" aria-hidden="true">
-                  →
-                </span>
-                <span className="match-value">
-                  {paired !== undefined ? `${optionText(paired)} (tap to undo)` : '…'}
-                </span>
-              </button>
-            </li>
+            <DroppablePrompt
+              key={p.id}
+              prompt={p}
+              pairedText={paired !== undefined ? optionText(paired) : undefined}
+              active={active === p.id}
+              disabled={disabled}
+              onTap={() => tapPrompt(p.id)}
+            />
           );
         })}
       </ul>
       <div className="options" role="group" aria-label="Options">
         {pool.map((o) => (
-          <button
+          <DraggableOption
             key={o.id}
-            type="button"
-            className="option"
+            option={o}
             disabled={disabled}
-            onClick={() => tapOption(o.id)}
-          >
-            {o.text}
-          </button>
+            onTap={() => tapOption(o.id)}
+          />
         ))}
       </div>
-    </div>
+    </DndContext>
   );
 }

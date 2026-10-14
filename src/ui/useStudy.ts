@@ -11,6 +11,9 @@ import type { Attempt, Bank, CardState, LocalDate, Settings } from '../domain/ty
 import { dailyXp, totalXp } from '../domain/xp';
 import type { AppEnv } from './deps';
 
+/** How often an open app checks whether the local date has changed. */
+export const DAY_CHECK_MS = 30_000;
+
 export interface Study {
   attempts: Attempt[];
   settings: Settings;
@@ -76,6 +79,24 @@ export function useStudy(
       offBank();
     };
   }, [session]);
+
+  // The local date can change while the app stays open (or waits in the background):
+  // re-render when it does, so the XP ring, the daily new-card cap and due cards follow it.
+  const timeZone = data?.settings.timeZone;
+  const [, setDay] = useState<LocalDate | null>(null);
+  useEffect(() => {
+    if (!timeZone) return;
+    const check = () => setDay(localDateOf(env.now(), timeZone));
+    check();
+    const timer = setInterval(check, DAY_CHECK_MS);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+    };
+  }, [env, timeZone]);
 
   const bank = bankStatus.bank;
   const states = useMemo(

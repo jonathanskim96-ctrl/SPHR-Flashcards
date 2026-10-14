@@ -2,16 +2,43 @@
 
 Every session reads this first, right after `CLAUDE.md`. Keep it short and current.
 
-## 1. Current state (2026-10-13)
+## 1. Current state (2026-10-14)
 
-- **Phase 8 (backups, keep-alive, question import) approved** by the owner (2026-10-13) on
-  branch `ccr-67c10ae0-ubtsvr`. Phases 0–8 approved; nothing merged to `main`.
-  **Next: Phase 9** (end-to-end, reviews, go-live), in a new chat (see §6).
+- **Phase 9 (end-to-end tests, reviews) built** on branch `ccr-67c10ae0-ubtsvr`, waiting for
+  the owner's review. Phases 0–8 approved; **nothing merged to `main`**. What is left is
+  **go-live**, which only the owner can do: the OK to merge, then SETUP Parts A–E and G,
+  INSTALL on her phone and the INSTALL §5 checklist (SETUP.md now starts with the order).
   **The migrations have NOT been run on Supabase** (the project doesn't exist yet; SETUP
-  Part B3 runs them later). Until then the real app shows "The app is not configured" (the
-  Supabase address and key are repo variables set in SETUP); everything was tested against
-  a pretend server. **The reminder function is not deployed** (SETUP B7–B9 do that), and
-  the VAPID key pair was given to the owner in chat only (never in a file).
+  Part B3 runs them). Until then the real app shows "The app is not configured";
+  everything was tested against a pretend server. **The reminder function is not
+  deployed** (SETUP B7–B9), and the VAPID key pair was given to the owner in chat only.
+- Phase 9 contents: **e2e** (Playwright, production build with CSP, iPhone 13 Pro Max
+  profile on Chromium; real-device checks are INSTALL §5): `e2e/cloud.ts` (a pretend
+  Supabase that keeps state: accounts, refresh tokens, PostgREST reads, `apply_changes`
+  through the unit tests' `FakeServer`, so two browser contexts are two phones on one
+  account; `seedRandom` = the seeded RNG hook), `e2e/study.ts` (shared steps),
+  `e2e/questions.spec.ts` (sign-in, wrong password, no sign-up path; all 6 types right and
+  wrong with feedback rules, and citations / other notes / wrong reasons / source never shown;
+  scenario above the stem; multi Check only at exactly 2; shuffled choices with no letters,
+  repeatable by seed; ordering and matching options shuffled; several areas only draw from
+  those areas; ordering by touch drag, ▲/▼, tap-to-place and keyboard only; matching by touch
+  drag, tap-tap with undo, and keyboard only), `e2e/days.spec.ts` (fake clock, Los Angeles:
+  15-new-card cap → All caught up, reviews first the next day; Mistakes leaves after right
+  answers on two different days; area/tier bars and the badge on a one-card tier; XP total
+  and the ring, which resets at local midnight with the app left open), `e2e/sync.spec.ts`
+  (two phones; offline answers wait, sign-out refused, then back up and reach the other
+  phone; settings conflict keeps the newer server copy with the notice; export → sign out →
+  fresh account → import gives identical Home; XSS payloads in server questions, a typed
+  answer and an imported file). Earlier specs already cover PWA/offline/update, reminder
+  and new-questions. **53 e2e tests** (was 20). **SQL:** `supabase/tests/80_blackbox.test.sql`
+  (a second account trying to claim, read, overwrite or switch off the first account's
+  answers, settings and reminder; oversized/deeply nested answers; anonymous visitors read
+  and call nothing). **App fixes** (both were in the plan but missing): matching can now be
+  answered by **dragging** an option onto a prompt (`src/ui/AnswerInputs.tsx`, dnd-kit,
+  already a dependency); Home **follows the date change** while the app stays open
+  (`src/ui/useStudy.ts`; before, an app left open overnight kept yesterday's XP ring and
+  new-card count until reopened, so it could say "All caught up" wrongly). Reviews: 16
+  mutation checks, a bug review and a security pass (NOTES.md). No new dependencies.
 - Phase 8 contents: `.github/workflows/keepalive.yml` (daily 15:17 UTC + manual button,
   `permissions: {}`, one POST to `rpc/keepalive` with the secret passed through `env:`, fails
   on any non-2xx, URL from the repo variable `VITE_SUPABASE_URL`);
@@ -241,6 +268,7 @@ Decided in the planning session (2026-10-13):
 | Phase 6 | **Approved** 2026-10-13 (start of the Phase 7 chat) |
 | Phase 7 | **Approved** 2026-10-13 |
 | Phase 8 | **Approved** 2026-10-13; no new product decisions were needed (all behaviour was decided in the plan) |
+| Phase 9 | Built 2026-10-14; no new product decisions (matching drag and the midnight reset were already in the plan); waiting for approval |
 | Late reminder | **Up to 1 hour late, once**, when the run at her chosen time fails or she picks a time that has just passed (the alternative, skipping that day, was declined). `CATCH_UP_MS` in `supabase/functions/send-reminders/index.ts` (decided 2026-10-13, Phase 7) |
 | Phase 6 choices | **App icon:** white "SPHR" letters on the app's green. **Safari (not installed):** the "Add to Home Screen" steps card appears at the top of Settings only, in place of the reminder switch; Home is unchanged (decided 2026-10-13) |
 | Instructions | **Every instruction to the owner includes copy-pastable steps** (exact clicks, and any text to paste in a code block) |
@@ -415,6 +443,18 @@ changing):
    after the merge to `main`; use the **Run workflow** button until then. (f) "Last export" is
    about the file made on this phone; it does not know about exports from another phone.
 
+17e. Phase 9 notes (no money/safety impact; the owner can change any):
+   (a) Matching by drag: hold an option about 0.2 s, then drag it onto a prompt (the
+   ordering handle starts after 0.12 s; matching waits a little longer because the whole
+   option is draggable, so a slow scroll that starts on an option still scrolls). Dropping
+   on a prompt that already has a match swaps the old match back into the pool. The hint
+   line now says "(or drag the match onto it)". (b) An open app re-checks the date every 30
+   seconds and whenever it comes back to the front. (c) **Not verified on a real iPhone:**
+   both drags with a finger, and the date change after a night in the background; INSTALL §5
+   lists them. (d) The security pass found nothing to fix. Noted, not changed: on Supabase
+   the app roles may be allowed to create objects in the `public` schema, but the API
+   (PostgREST) cannot run such statements, so this is not reachable from the app.
+
 **Unverified facts (confirm during SETUP)**
 17. The cloud session could not open apple.com, webkit.org or supabase.com directly; the
    facts in §4 come from search results quoting those docs, plus community write-ups.
@@ -451,6 +491,7 @@ npm run typecheck && npm run lint && npm test
 npm run build
 ./supabase/tests/run.sh                    # local Postgres: RLS, attack, import, recovery, App↔DB contract (answers, settings, bank)
 npm run e2e                                # Playwright, iPhone 13 Pro Max profile; builds dist-e2e itself (pretend Supabase address)
+#   e2e/questions, days, sync use the stateful pretend server in e2e/cloud.ts (fake clock: page.clock)
 npm run test:functions                     # (part of npm test) the reminder Edge Function in Deno; needs openssl
 # also in npm test: scripts/workflows.test.mjs and scripts/import-bank.test.mjs; run.sh runs supabase/tests/contract/import.test.ts
 ```

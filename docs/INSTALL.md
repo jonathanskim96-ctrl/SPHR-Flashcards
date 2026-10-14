@@ -61,7 +61,9 @@ Tick each one. Tell the build session about anything that fails.
 - [ ] Sign-in works.
 - [ ] A lesson shows all six question kinds over time; drag-to-reorder works with a finger,
       and the ▲/▼ buttons work too.
-- [ ] Matching works by tapping a prompt, then an option.
+- [ ] Matching works by tapping a prompt, then an option, and by holding an option for a
+      moment and dragging it onto a prompt. Scrolling the screen with a finger on an option
+      still scrolls.
 - [ ] Typing in a fill-in answer doesn't auto-capitalize or autocorrect.
 - [ ] Airplane mode on → the app still opens and a lesson works → Airplane mode off →
       Settings says "All answers backed up".

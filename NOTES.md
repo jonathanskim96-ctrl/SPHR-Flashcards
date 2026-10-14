@@ -347,3 +347,59 @@ Mutation checks (each made to the file, tests run, file restored):
 | clamp removed in "last export" (negative days) | exportAge.test |
 | edited card's choice text changed (state should reset) | e2e/newQuestions (lesson offered the old card again) |
 
+
+## 2026-10-14: Phase 9 (end-to-end tests, reviews)
+
+Built: the Phase 9 end-to-end scenarios (`e2e/questions.spec.ts`, `days.spec.ts`,
+`sync.spec.ts`, with `e2e/cloud.ts` and `e2e/study.ts`), a black-box SQL attack file
+(`supabase/tests/80_blackbox.test.sql`), and two app fixes the plan asked for but the build
+had missed.
+
+- **Matching by drag** (BUILD_PLAN Phase 5: "or drag an option onto a prompt") was never
+  built; only tapping was. Added with dnd-kit (already used for ordering). Mouse and touch
+  sensors only, so Enter/Space on an option is still a tap. The option keeps its `option`
+  class (component tests select by it); draggables are marked `data-draggable`.
+- **Midnight reset**: Home computed "today" only when something redrew it, so an app left
+  open (or in the background) past midnight kept yesterday's XP ring and new-card count.
+  `useStudy` now re-checks the date every 30 s and on focus / return to the front.
+- `tests/fakeServer.ts` now exposes `applyRaw`, `attemptRows` and `settingsRow` (the same
+  logic as before, in the server's own spelling) so the e2e pretend server reuses the
+  `apply_changes` contract instead of a second copy.
+- The pretend server leaves out `expires_at` so supabase-js computes token expiry from the
+  page's fake clock, and answers the refresh-token grant; jumping days otherwise signs out.
+- Playwright's fake clock (`page.clock.install`) barely advances in real time; the
+  midnight test therefore waits until the answer has reached the server before jumping, or
+  the backup's redraw would hide the bug (it did, twice, before this was found).
+- dnd-kit ignores clicks for 50 ms after a drop and starts its keyboard listener one tick
+  after a pick-up; the tests pause 100 ms there (a person can't act that fast).
+- Choice order "differs across two showings": four fresh phones with seeds 1, 2, 3, 1; the
+  first three are not all the same, and seed 1 repeats exactly.
+- Security pass: production build scanned (no secret, no `eyJ` token, no source maps, one
+  external module script, strict CSP; `sb_secret`/`innerHTML` hits are supabase-js's key
+  prefix check and React DOM internals); every app write is one of the three RPCs; SQL
+  attack file passes. A `SET ROLE` case was dropped: the harness session is a superuser, and
+  through the API the role comes from the signed token. Nothing needed fixing.
+- Bug review of this phase's diff: the matching touch hold raised from 0.12 s to 0.2 s so a
+  slow scroll starting on an option still scrolls. The `/code-review` skill could not run
+  (session limit); the review was done by hand.
+
+Mutation checks (each made, the named tests run, the file restored byte for byte):
+
+| Mutation | Caught by |
+|---|---|
+| attempts select policy `using (true)` | 20_rls ("B sees A's answers") |
+| append-only trigger on attempts removed | 30_attack (update succeeded) |
+| `apply_changes` cap 200 → 100000 | 30_attack ("too many answers") |
+| import's missing-question check off | 40_import |
+| text normalizer drops all punctuation | grade.test (4) |
+| text normalizer drops every period | grade.test (2) |
+| numeric tolerance doubled | grade.test (2) |
+| wrong-answer feedback shows citations | e2e questions "answered wrong" |
+| matching drop ignored | e2e "matching by touch drag" |
+| multi Check enabled with 1 chosen | e2e "multi" |
+| choices not shuffled | e2e "shuffled each showing" |
+| area filter ignored | e2e "several areas" |
+| daily new-card cap ignored | e2e days "cap" |
+| Mistakes left after one right answer | e2e days "Mistakes" |
+| no sync on return to the front | e2e sync "two phones" |
+| no date re-check in `useStudy` | e2e days "midnight" |

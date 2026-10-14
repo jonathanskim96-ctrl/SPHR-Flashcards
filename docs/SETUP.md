@@ -12,6 +12,15 @@ Never put them in GitHub files or in a message to anyone else.
 
 Some parts need the app to be built first. The build session tells you when to do each part.
 
+**Go-live order** (all phases are built; Phase 9 finished the testing):
+1. Part A (GitHub), then Part B (Supabase), in order.
+2. Part C: the build session asks for your OK to merge into `main`; the deploy runs.
+3. Part D (keep-alive), then Part E (load the questions).
+4. Part G (confirm the facts), then `docs/INSTALL.md` on Michelle's iPhone, ending with its
+   §5 first-day checklist.
+The app is "live" when the deploy run shows a green ✓, Parts A–E are done and the §5
+checklist passes on her phone. Tell the build session; it records that in the handoff notes.
+
 ---
 
 ## Part A: GitHub
