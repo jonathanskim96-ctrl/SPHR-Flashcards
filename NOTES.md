@@ -500,3 +500,4 @@ redeploy and the environment secret are still the owner's steps (HANDOFF §3 ite
   drag test uses 0; new test: tap on the handle moves nothing, a quick flick moves the row.
   Chain passed: bank, migrations, typecheck, lint, 170 unit, build, database tests, 55 e2e.
   Not verified: a real iPhone (cloud Chromium only).
+- Merged into `main` (fast-forward) at the owner's request, 2026-10-16.

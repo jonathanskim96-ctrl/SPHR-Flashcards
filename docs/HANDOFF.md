@@ -490,7 +490,7 @@ changing):
    delivery test on her phone, drag speed. Michelle's iPhone checklist (INSTALL §5):
    everything works except ordering by finger drag, which needed a push-and-hold. **Built
    2026-10-16 (owner chose option 1, no delay), on branch `claude/dreamy-dijkstra-4dkj4c`,
-   NOT yet merged to `main` and not yet tried on her phone:** the ordering `TouchSensor` in
+   merged into `main` at the owner's request (fast-forward), not yet tried on her phone:** the ordering `TouchSensor` in
    `src/ui/AnswerInputs.tsx` now starts after 4 px of movement with no hold (was delay 120 ms /
    tolerance 8); the ⠿ handle column is 56 px (was 48) with `user-select: none` and
    `-webkit-touch-callout: none`. Matching keeps its 200 ms hold. e2e: ordering drag with no
