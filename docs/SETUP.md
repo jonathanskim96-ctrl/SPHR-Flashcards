@@ -153,7 +153,11 @@ settings and Michelle's devices, and writes only the reminder log and each devic
 4. Click **Deploy function**. Wait for "Deployed".
 5. Open the function's **Details** / **Settings** and turn **off** **Enforce JWT
    verification** (the function checks the cron secret itself). Click **Save**.
-6. Supabase gives the function its own project address and service key automatically
+6. **Check the function's real address.** Open the function's **Overview**: the address under
+   its name ends in a slug that the dashboard may have generated (on 2026-10-16 it was
+   `smooth-processor`, not `send-reminders`). The B9 job must call **that** slug, or every run
+   answers 404 "Requested function was not found".
+7. Supabase gives the function its own project address and service key automatically
    (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`); you don't add those.
 
 ### B9. Schedule the reminder job

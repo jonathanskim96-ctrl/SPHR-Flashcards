@@ -501,3 +501,6 @@ redeploy and the environment secret are still the owner's steps (HANDOFF §3 ite
   Chain passed: bank, migrations, typecheck, lint, 170 unit, build, database tests, 55 e2e.
   Not verified: a real iPhone (cloud Chromium only).
 - Merged into `main` (fast-forward) at the owner's request, 2026-10-16.
+
+## 2026-10-16: reminders never sent
+See HANDOFF section 7: wrong vault project_url, then function slug smooth-processor vs cron path send-reminders. SETUP B8 step 6 now says to check the slug. Not code bugs; no app change.

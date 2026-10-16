@@ -583,3 +583,13 @@ Phases 0 to N-1 are built and approved. Work on the existing branch ccr-67c10ae0
 (In the message itself, write the real numbers, e.g. "Phases 0 to 3 are built and approved"
 and "Phase 4".) If the owner approves a phase in the same chat, record the approval in §1,
 commit and push, then give these steps; do not start the next phase.
+
+## 7. Reminder outage found 2026-10-16 (owner-run SQL, each approved one at a time)
+Michelle's reminders (9:45 AM, 12:00 PM) never arrived. Cause, in order: (1) vault `project_url`
+was a mistyped address (`https://PANEZ...supabase.co`): "Couldn't resolve host name" on every
+run; changed to `https://aqhphpwiazqutaazribc.supabase.co` (approved). (2) The function's
+dashboard slug is `smooth-processor`, not `send-reminders`, so the job got 404; cron job 1's
+command changed to call `/functions/v1/smooth-processor` (approved). Next to verify: a run
+returns 200, `reminder_log` gets a row, and a notification reaches her phone; then check
+that the two registered Apple devices include a stale one. Any redeploy of the function must keep
+cron pointing at its real slug (SETUP B8 step 6).
