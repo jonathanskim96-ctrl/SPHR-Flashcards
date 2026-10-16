@@ -260,7 +260,9 @@ function OrderingInput({ q, order, disabled, onChange }: InputProps<OrderingQues
   useEffect(() => onChange({ type: 'ordering', order: ids }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 8 } }),
+    // No hold: the ⠿ handle is the only thing that starts a drag (touch-action: none), so a
+    // finger that moves 4 px from it drags at once; a tap stays a tap.
+    useSensor(TouchSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const items = byOrder(q.items, ids);

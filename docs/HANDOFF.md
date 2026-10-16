@@ -488,9 +488,13 @@ changing):
    collaborators). Two active Apple push devices are registered for her (likely one stale;
    not touched; check whether she gets one or two notifications). Still open: reminder
    delivery test on her phone, drag speed. Michelle's iPhone checklist (INSTALL §5):
-   everything works except ordering by finger drag, which needs a push-and-hold; the owner
-   wants it much quicker (open: pick an option, see the drag-delay note in the chat; code in
-   `src/ui/AnswerInputs.tsx`, ordering `TouchSensor` delay 120 ms / tolerance 8).
+   everything works except ordering by finger drag, which needed a push-and-hold. **Built
+   2026-10-16 (owner chose option 1, no delay), on branch `claude/dreamy-dijkstra-4dkj4c`,
+   NOT yet merged to `main` and not yet tried on her phone:** the ordering `TouchSensor` in
+   `src/ui/AnswerInputs.tsx` now starts after 4 px of movement with no hold (was delay 120 ms /
+   tolerance 8); the ⠿ handle column is 56 px (was 48) with `user-select: none` and
+   `-webkit-touch-callout: none`. Matching keeps its 200 ms hold. e2e: ordering drag with no
+   hold, and a tap on the handle moves nothing.
    (a) export on Michelle's phone; (b) run migration `0004` in the SQL editor (additive;
    refuses push addresses that aren't push services, so check (e) first if unsure);
    (c) redeploy `send-reminders` with the new `index.ts` (B8 steps 1–4, editing the existing

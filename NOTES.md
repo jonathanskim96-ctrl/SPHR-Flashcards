@@ -489,3 +489,14 @@ Owner: "OK to merge the audit branch into main." The full check chain had passed
 the branch, so the merge is a fast-forward push (no history rewritten). The Deploy workflow
 on `main` now runs the new variable-shape step first. Migration 0004, the function
 redeploy and the environment secret are still the owner's steps (HANDOFF §3 item 20).
+
+## 2026-10-16: faster ordering drag on iPhone
+- Owner chose option 1 (handle starts at once). Ordering `TouchSensor`: `distance: 4` instead of
+  `delay: 120, tolerance: 8` (the old setting cancelled the drag if the finger moved within the
+  first 120 ms, so she had to press and hold still). Handle column 48 -> 56 px, no text selection
+  or iOS callout on it. Only the handle drags (`touch-action: none`), so scrolling by touching
+  the text is unchanged; matching keeps its 200 ms hold; the ▲/▼ buttons are untouched.
+- Tests: e2e `touchDrag` got a `holdMs` argument (default 250, used by matching); the ordering
+  drag test uses 0; new test: tap on the handle moves nothing, a quick flick moves the row.
+  Chain passed: bank, migrations, typecheck, lint, 170 unit, build, database tests, 55 e2e.
+  Not verified: a real iPhone (cloud Chromium only).

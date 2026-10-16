@@ -358,7 +358,12 @@ async function toOrdering(page: Page) {
 const RIGHT_ORDER = (ordering.answer as string[]).map((id) => textOf(ordering.items, id));
 
 /** One touch drag (press, hold, move in steps, lift) from one element's centre to another's. */
-async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+async function touchDrag(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  holdMs = 250,
+) {
   const cdp = await page.context().newCDPSession(page);
   const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) =>
     cdp.send('Input.dispatchTouchEvent', {
@@ -366,7 +371,7 @@ async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: nu
       touchPoints: type === 'touchEnd' ? [] : [{ x, y }],
     });
   await touch('touchStart', from.x, from.y);
-  await page.waitForTimeout(250); // hold: the drag starts after a short press
+  if (holdMs > 0) await page.waitForTimeout(holdMs); // hold: matching starts after a short press
   for (let i = 1; i <= 12; i++) {
     await touch(
       'touchMove',
@@ -399,12 +404,30 @@ test('ordering by touch drag, then graded right', async ({ page }) => {
         page.getByRole('button', { name: new RegExp(`^Drag: Item ${at + 1} of`) }),
       ),
       await centre(page, page.getByRole('button', { name: new RegExp(`^Drag: Item ${i + 1} of`) })),
+      0, // no hold: the ordering drag starts as soon as the finger moves
     );
     await expect.poll(async () => (await rows(page).allTextContents())[i]).toBe(RIGHT_ORDER[i]);
   }
   await checkButton(page).click();
   await expect(feedback(page)).toContainText('✓ Correct! +3 XP');
   expect(csp).toEqual([]);
+});
+
+test('ordering: a tap on the handle moves nothing, a quick flick moves the row', async ({
+  page,
+}) => {
+  await toOrdering(page);
+  const before = await rows(page).allTextContents();
+  const h1 = page.getByRole('button', { name: /^Drag: Item 1 of/ });
+  await h1.tap();
+  expect(await rows(page).allTextContents()).toEqual(before);
+  await touchDrag(
+    page,
+    await centre(page, h1),
+    await centre(page, page.getByRole('button', { name: /^Drag: Item 2 of/ })),
+    0,
+  );
+  await expect.poll(async () => (await rows(page).allTextContents())[1]).toBe(before[0]);
 });
 
 test('ordering by tap-to-place ("Move here"), then graded right', async ({ page }) => {
