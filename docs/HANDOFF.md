@@ -4,6 +4,14 @@ Every session reads this first, right after `CLAUDE.md`. Keep it short and curre
 
 ## 1. Current state (2026-10-14)
 
+- **2026-10-16 update (read this first):** (a) Ordering finger-drag now starts with no hold
+  (owner's option 1; merged to `main`); real-iPhone check still to be reported by the owner.
+  (b) Daily reminders were broken until 2026-10-16 because of two setup slips (wrong vault
+  `project_url`, and the function's address slug `smooth-processor` vs the cron path); both
+  fixed and **verified working** (she got one notification). Full record and what is still open
+  (tomorrow's reminder; two registered Apple devices, one likely stale): **§7**. If reminders
+  ever stop, start with §7 and the read-only queries described there.
+
 - **Security and bug audit (2026-10-14): approved and merged into `main` at the owner's request (fast-forward).**
   Findings and fixes: `docs/SECURITY_AUDIT.md` (no critical or high; no secret ever
   committed; `npm audit` 0). The owner approved every recommended option (§2); **all are
