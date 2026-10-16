@@ -480,7 +480,14 @@ changing):
 
 20. **Audit 2026-10-14: owner steps after the merge.** Progress (2026-10-16): (a) export
    done; (b) migration `0004` run, "Success"; (c) `send-reminders` redeployed, JWT
-   verification still off; (d) and (e) still open. Michelle's iPhone checklist (INSTALL §5):
+   verification still off; (d) `supabase-admin` environment holds the secret, Keep Supabase awake
+   ran green from it; (e) sign-up and anonymous switches off, only Email on, read-only SQL
+   all as expected (every table has RLS, anon has no rights, 4 triggers from 0004, 1 account,
+   0 anonymous), GitHub Actions workflow permissions read-only and no PR approval; fork
+   approval was "first-time contributors" (owner asked whether to tighten to all external
+   collaborators). Two active Apple push devices are registered for her (likely one stale;
+   not touched; check whether she gets one or two notifications). Still open: reminder
+   delivery test on her phone, drag speed. Michelle's iPhone checklist (INSTALL §5):
    everything works except ordering by finger drag, which needs a push-and-hold; the owner
    wants it much quicker (open: pick an option, see the drag-delay note in the chat; code in
    `src/ui/AnswerInputs.tsx`, ordering `TouchSensor` delay 120 ms / tolerance 8).
