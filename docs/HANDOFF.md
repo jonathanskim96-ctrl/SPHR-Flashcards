@@ -589,7 +589,8 @@ Michelle's reminders (9:45 AM, 12:00 PM) never arrived. Cause, in order: (1) vau
 was a mistyped address (`https://PANEZ...supabase.co`): "Couldn't resolve host name" on every
 run; changed to `https://aqhphpwiazqutaazribc.supabase.co` (approved). (2) The function's
 dashboard slug is `smooth-processor`, not `send-reminders`, so the job got 404; cron job 1's
-command changed to call `/functions/v1/smooth-processor` (approved). Next to verify: a run
-returns 200, `reminder_log` gets a row, and a notification reaches her phone; then check
-that the two registered Apple devices include a stale one. Any redeploy of the function must keep
+command changed to call `/functions/v1/smooth-processor` (approved). **Verified 2026-10-16 19:45 UTC:** run returned 200 (`checked 1, due 1, sent 2, failed 0`),
+`reminder_log` got a row, both devices show `last_success_at`, and a notification reached her
+phone. Still open: did she get two notifications (two Apple devices registered; likely one
+stale)? and tomorrow's scheduled reminder at her time. Any redeploy of the function must keep
 cron pointing at its real slug (SETUP B8 step 6).

@@ -504,3 +504,4 @@ redeploy and the environment secret are still the owner's steps (HANDOFF §3 ite
 
 ## 2026-10-16: reminders never sent
 See HANDOFF section 7: wrong vault project_url, then function slug smooth-processor vs cron path send-reminders. SETUP B8 step 6 now says to check the slug. Not code bugs; no app change.
+- Verified: after both fixes the 19:45 UTC run sent 2 pushes (200), a reminder_log row exists and her phone got the notification.
