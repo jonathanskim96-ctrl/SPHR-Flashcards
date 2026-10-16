@@ -478,7 +478,12 @@ changing):
    the app roles may be allowed to create objects in the `public` schema, but the API
    (PostgREST) cannot run such statements, so this is not reachable from the app.
 
-20. **Audit 2026-10-14: owner steps after the merge** (nothing below is done yet):
+20. **Audit 2026-10-14: owner steps after the merge.** Progress (2026-10-16): (a) export
+   done; (b) migration `0004` run, "Success"; (c) `send-reminders` redeployed, JWT
+   verification still off; (d) and (e) still open. Michelle's iPhone checklist (INSTALL §5):
+   everything works except ordering by finger drag, which needs a push-and-hold; the owner
+   wants it much quicker (open: pick an option, see the drag-delay note in the chat; code in
+   `src/ui/AnswerInputs.tsx`, ordering `TouchSensor` delay 120 ms / tolerance 8).
    (a) export on Michelle's phone; (b) run migration `0004` in the SQL editor (additive;
    refuses push addresses that aren't push services, so check (e) first if unsure);
    (c) redeploy `send-reminders` with the new `index.ts` (B8 steps 1–4, editing the existing
